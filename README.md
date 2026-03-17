@@ -1,8 +1,8 @@
 # Forge Backend
 
-Django REST API + Task Engine za Forge platformu.
+Django REST API + Task Engine for the Forge platform.
 
-## Tehnologije
+## Tech Stack
 
 - Python 3.12
 - Django 4.2.17
@@ -13,28 +13,28 @@ Django REST API + Task Engine za Forge platformu.
 - Channels 4 (WebSocket)
 - Receptor (distributed execution)
 
-## Struktura
+## Structure
 
 ```
 forge/
 ├── api/          # REST API (DRF views, serializers, permissions)
-├── main/         # Core modeli, signali, tasks, migracije
-├── conf/         # Konfiguracija i database-backed settings
-├── sso/          # SSO integracija (LDAP, SAML, Social Auth)
+├── main/         # Core models, signals, tasks, migrations
+├── conf/         # Configuration and database-backed settings
+├── sso/          # SSO integration (LDAP, SAML, Social Auth)
 ├── settings/     # Django settings (development, production)
-├── playbooks/    # Ansible playbooks za job execution
-├── locale/       # Internacionalizacija
+├── playbooks/    # Ansible playbooks for job execution
+├── locale/       # Internationalization
 └── ui/           # Legacy UI (awx compatibility)
 ```
 
 ## Development
 
 ```bash
-# Vagrant VM (obavezno za razvoj)
+# Vagrant VM (required for development)
 vagrant up
 vagrant ssh
 
-# Pokretanje testova
+# Run tests
 pytest forge/main/tests/unit/ -v
 pytest forge/main/tests/functional/ -v
 
@@ -46,9 +46,9 @@ flake8
 
 Base URL: `/api/v2/`
 
-Pogledaj [docs/11-api-reference.md](docs/11-api-reference.md) za kompletnu referencu.
+See [docs/11-api-reference.md](docs/11-api-reference.md) for the complete reference.
 
-## Dokumentacija
+## Documentation
 
 - [Backend Django](docs/02-backend-django.md)
 - [Task Engine](docs/04-task-engine.md)
@@ -64,7 +64,7 @@ Pogledaj [docs/11-api-reference.md](docs/11-api-reference.md) za kompletnu refer
 docker build -t krlex/forge-backend:latest .
 ```
 
-## Povezani repozitorijumi
+## Related Repositories
 
-- [forge-frontend](https://github.com/forgeplatform/forge-frontend) — React UI
-- [forge-deploy](https://github.com/forgeplatform/forge-deploy) — Docker Compose, Nginx, CI/CD
+- [forge-frontend](https://git.cloudforyour.work/forge-platform/forge-frontend) — React UI
+- [forge-devops](https://git.cloudforyour.work/forge-platform/forge-devops) — Docker Compose, Nginx, CI/CD
