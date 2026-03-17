@@ -1,7 +1,7 @@
 # Copyright (c) 2015 Ansible, Inc.
 # All Rights Reserved.
 
-# AWX-specific miscellaneous settings
+# Forge-specific miscellaneous settings
 
 # ---------------------
 # -- Activity Stream --

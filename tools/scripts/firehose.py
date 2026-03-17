@@ -1,4 +1,4 @@
-#! /usr/bin/env awx-python
+#! /usr/bin/env forge-python
 
 #
 # !!! READ BEFORE POINTING THIS AT YOUR FOOT !!!

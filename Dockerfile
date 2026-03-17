@@ -154,7 +154,8 @@ ADD tools/scripts/rsyslog-4xx-recovery /usr/bin/rsyslog-4xx-recovery
 ADD _build/supervisor_web.conf /etc/supervisord_web.conf
 ADD _build/supervisor_task.conf /etc/supervisord_task.conf
 ADD _build/supervisor_rsyslog.conf /etc/supervisord_rsyslog.conf
-ADD tools/scripts/awx-python /usr/bin/awx-python
+ADD tools/scripts/forge-python /usr/bin/forge-python
+RUN ln -s /usr/bin/forge-python /usr/bin/awx-python
 
 # Pre-create directories
 RUN for dir in \

@@ -17,7 +17,7 @@ from .jobs import *  # noqa: F401,F403
 from .inventory_plugins import *  # noqa: F401,F403
 from .websockets import *  # noqa: F401,F403
 from .logging_conf import *  # noqa: F401,F403
-from .awx_settings import *  # noqa: F401,F403
+from .forge_settings import *  # noqa: F401,F403
 
 from split_settings.tools import include
 
