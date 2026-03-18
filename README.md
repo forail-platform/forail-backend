@@ -61,7 +61,7 @@ See [docs/11-api-reference.md](docs/11-api-reference.md) for the complete refere
 ## Docker
 
 ```bash
-docker build -t krlex/forge-backend:latest .
+docker build -t registry.cloudforyour.work/forge-platform/forge-backend:latest .
 ```
 
 ## Related Repositories
