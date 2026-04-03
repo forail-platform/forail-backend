@@ -37,6 +37,7 @@ All models are in `forge/main/models/`. Each file covers one domain area:
 | `activity_stream.py` | ActivityStream | Audit log of all changes |
 | `mixins.py` | SurveyJobTemplateMixin | Survey system — static and dynamic choices (see `docs/13-dynamic-surveys.md`) |
 | `audit.py` | AuditEvent | Immutable security audit log — credential access, auth, permissions (see `docs/14-audit-trail.md`) |
+| `eda.py` | EventRule, EventLog, OutboundWebhook | Event-Driven Automation — webhook rules, condition engine, outbound hooks (see `docs/15-event-driven-automation.md`) |
 | `rbac.py` | Role | RBAC system — roles and permissions |
 | `oauth.py` | OAuth2Application, Token | API tokens |
 | `execution_environments.py` | ExecutionEnvironment | Container image reference for execution |

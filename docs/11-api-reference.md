@@ -221,6 +221,56 @@ GET    /api/v2/audit_events/                       # Audit events (immutable sec
 GET    /api/v2/audit_events/?format=csv            # Export audit events as CSV
 GET    /api/v2/audit_events/?format=siem           # Export audit events for SIEM (flat JSON)
 GET    /api/v2/audit_events/{id}/                  # Audit event detail
+
+# Event-Driven Automation (EDA)
+GET    /api/v2/event_rules/                           # List event rules
+POST   /api/v2/event_rules/                           # Create event rule
+GET    /api/v2/event_rules/{id}/                      # Event rule detail
+PATCH  /api/v2/event_rules/{id}/                      # Update event rule
+DELETE /api/v2/event_rules/{id}/                      # Delete event rule
+GET    /api/v2/event_rules/{id}/webhook_key/          # Get webhook HMAC key
+POST   /api/v2/event_rules/{id}/webhook_key/          # Rotate webhook key
+GET    /api/v2/event_rules/{id}/event_logs/           # Logs for this rule
+POST   /api/v2/event_rules/{id}/test/                 # Dry-run condition test
+POST   /api/v2/event_rules/{id}/enable/               # Enable rule
+POST   /api/v2/event_rules/{id}/disable/              # Disable rule
+
+GET    /api/v2/event_logs/                            # List all event logs
+GET    /api/v2/event_logs/{id}/                       # Event log detail (payload, conditions, actions)
+
+GET    /api/v2/outbound_webhooks/                     # List outbound webhooks
+POST   /api/v2/outbound_webhooks/                     # Create outbound webhook
+GET    /api/v2/outbound_webhooks/{id}/                # Detail
+PATCH  /api/v2/outbound_webhooks/{id}/                # Update
+DELETE /api/v2/outbound_webhooks/{id}/                # Delete
+POST   /api/v2/outbound_webhooks/{id}/test/           # Send test payload
+
+POST   /api/v2/eda_webhooks/{webhook_path}/           # Public receiver (no auth, HMAC verified)
+```
+
+### Event Rule — Create Example
+
+```bash
+curl -X POST https://forge.example.com/api/v2/event_rules/ \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Deploy on GitHub push",
+    "organization": 1,
+    "source_type": "webhook_github",
+    "webhook_path": "github-deploy",
+    "conditions": [
+      {"jinja2_expression": "event.ref == \"refs/heads/main\"", "description": "Main branch only"}
+    ],
+    "actions": [
+      {"action_type": "launch_job_template", "target_id": 5}
+    ]
+  }'
+```
+
+### Administration
+
+```bash
 GET    /api/v2/instances/                          # Cluster nodes
 GET    /api/v2/instance_groups/                    # Instance groups
 GET    /api/v2/settings/                           # List setting categories

@@ -87,6 +87,7 @@ from .workflow_approval_template import urls as workflow_approval_template_urls
 from .workflow_approval import urls as workflow_approval_urls
 from .analytics import urls as analytics_urls
 from .receptor_address import urls as receptor_address_urls
+from .eda import event_rule_urls, event_log_urls, outbound_webhook_urls, eda_webhook_urls
 
 v2_urls = [
     re_path(r'^$', ApiV2RootView.as_view(), name='api_v2_root_view'),
@@ -159,6 +160,10 @@ v2_urls = [
     re_path(r'^bulk/host_delete/$', BulkHostDeleteView.as_view(), name='bulk_host_delete'),
     re_path(r'^bulk/job_launch/$', BulkJobLaunchView.as_view(), name='bulk_job_launch'),
     re_path(r'^receptor_addresses/', include(receptor_address_urls)),
+    re_path(r'^event_rules/', include(event_rule_urls)),
+    re_path(r'^event_logs/', include(event_log_urls)),
+    re_path(r'^outbound_webhooks/', include(outbound_webhook_urls)),
+    re_path(r'^eda_webhooks/', include(eda_webhook_urls)),
 ]
 
 

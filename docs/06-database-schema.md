@@ -20,6 +20,9 @@ Organization ──1:N──► Project
 WorkflowJobTemplate ──1:N──► WorkflowJobNode
 Schedule ──► UnifiedJobTemplate (any template type)
 
+Organization ──1:N──► EventRule ──1:N──► EventLog
+             ──1:N──► OutboundWebhook
+
 Role ──M:N──► User
      ──M:N──► Team
      ──parent/child──► Role (hierarchy)
@@ -43,6 +46,14 @@ Role ──M:N──► User
 | `main_credential` | Encrypted secrets | Slow |
 | `main_jobtemplate` | Templates for execution | Slow |
 
+### Event-Driven Automation
+
+| Table | Description | Growth rate |
+|-------|-------------|-------------|
+| `main_eventrule` | Webhook rules with conditions and actions | Slow (admin-created) |
+| `main_eventlog` | Incoming webhook events and evaluation results | **Fast** (depends on webhook traffic) |
+| `main_outboundwebhook` | Outbound webhook configurations | Slow |
+
 ### Execution (GROW FAST — cleanup required)
 
 | Table | Description | Growth rate |
@@ -52,6 +63,8 @@ Role ──M:N──► User
 | `main_projectupdate` | Project sync records | Medium |
 | `main_inventoryupdate` | Inventory sync records | Medium |
 | `main_activitystream` | Audit log of all changes | **Fast** |
+| `main_auditevent` | Immutable security audit log | **Fast** |
+| `main_eventlog` | EDA webhook event logs | **Fast** (depends on webhook volume) |
 | `main_notification` | Sent notifications | Medium |
 
 ### Watch out

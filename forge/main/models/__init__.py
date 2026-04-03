@@ -84,6 +84,7 @@ from forge.main.models.mixins import (  # noqa
     TaskManagerUnifiedJobMixin,
 )
 from forge.main.models.notifications import Notification, NotificationTemplate, JobNotificationMixin  # noqa
+from forge.main.models.eda import EventRule, EventLog, OutboundWebhook  # noqa
 from forge.main.models.label import Label  # noqa
 from forge.main.models.workflow import (  # noqa
     WorkflowJob,
@@ -306,9 +307,11 @@ activity_stream_registrar.connect(WorkflowApproval)
 activity_stream_registrar.connect(WorkflowApprovalTemplate)
 activity_stream_registrar.connect(OAuth2Application)
 activity_stream_registrar.connect(OAuth2AccessToken)
+activity_stream_registrar.connect(EventRule)
+activity_stream_registrar.connect(OutboundWebhook)
 
 # Register models
-permission_registry.register(Project, Team, WorkflowJobTemplate, JobTemplate, Inventory, Organization, Credential, NotificationTemplate, ExecutionEnvironment)
+permission_registry.register(Project, Team, WorkflowJobTemplate, JobTemplate, Inventory, Organization, Credential, NotificationTemplate, ExecutionEnvironment, EventRule, OutboundWebhook)
 permission_registry.register(InstanceGroup, parent_field_name=None)  # Not part of an organization
 
 # prevent API filtering on certain Django-supplied sensitive fields

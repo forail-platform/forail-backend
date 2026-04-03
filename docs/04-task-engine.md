@@ -34,6 +34,13 @@ Every job goes through a defined state machine:
 
 ## What Happens Step by Step
 
+Jobs can be launched from multiple sources:
+- **Manual:** User clicks "Launch" in the UI or calls `POST /api/v2/job_templates/{id}/launch/`
+- **Schedule:** iCal recurrence rule triggers at the configured time
+- **Webhook (legacy):** Direct webhook on a JobTemplate (GitHub/GitLab push triggers a specific template)
+- **EDA Rule:** Event-Driven Automation rule fires after evaluating conditions on an incoming webhook (see `docs/15-event-driven-automation.md`)
+- **Workflow:** A workflow node launches the job as part of a DAG execution
+
 1. **Launch:** API creates a `Job` record in the database (status: `pending`), places a Celery task in Redis
 2. **Dispatch:** Dispatcher reads the task from Redis, checks capacity, selects a node
 3. **Execution:** Ansible Runner starts `ansible-playbook` with all parameters
