@@ -172,6 +172,8 @@ class WorkflowJobTemplateNode(WorkflowNodeBase):
         'labels',
         'execution_environment',
         'instance_groups',
+        'survey_enabled',
+        'survey_spec',
     ]
     REENCRYPTION_BLOCKLIST_AT_COPY = ['extra_data', 'survey_passwords']
 
@@ -193,6 +195,16 @@ class WorkflowJobTemplateNode(WorkflowNodeBase):
         editable=False,
         through='WorkflowJobTemplateNodeBaseInstanceGroupMembership',
     )
+
+    survey_enabled = models.BooleanField(
+        default=False,
+        help_text=_('Whether this node has its own survey for collecting variables at launch time.'),
+    )
+    survey_spec = prevent_search(models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=_('Survey specification for this node. Format: {"name": "...", "description": "...", "spec": [...]}'),
+    ))
 
     class Meta:
         app_label = 'main'
@@ -228,6 +240,9 @@ class WorkflowJobTemplateNode(WorkflowNodeBase):
                     continue
             create_kwargs[field_name] = item
         create_kwargs['workflow_job_template'] = workflow_job_template
+        # Copy node survey fields (not in _get_workflow_job_field_names since they're template-only)
+        create_kwargs['survey_enabled'] = self.survey_enabled
+        create_kwargs['survey_spec'] = self.survey_spec
         new_node = self.__class__.objects.create(**create_kwargs)
         for cred in allowed_creds:
             new_node.credentials.add(cred)
@@ -552,8 +567,21 @@ class WorkflowJobTemplate(UnifiedJobTemplate, WorkflowJobOptions, SurveyJobTempl
         )
 
     def create_unified_job(self, **kwargs):
+        node_survey_data = kwargs.pop('node_survey_data', {})
         workflow_job = super(WorkflowJobTemplate, self).create_unified_job(**kwargs)
         workflow_job.copy_nodes_from_original(original=self)
+
+        # Apply node-level survey answers to the corresponding WorkflowJobNodes
+        if node_survey_data:
+            for wj_node in workflow_job.workflow_job_nodes.all():
+                if wj_node.identifier in node_survey_data:
+                    answers = node_survey_data[wj_node.identifier]
+                    if isinstance(answers, dict):
+                        extra = wj_node.extra_data or {}
+                        extra.update(answers)
+                        wj_node.extra_data = extra
+                        wj_node.save(update_fields=['extra_data'])
+
         return workflow_job
 
     def _accept_or_ignore_job_kwargs(self, **kwargs):
@@ -597,7 +625,16 @@ class WorkflowJobTemplate(UnifiedJobTemplate, WorkflowJobOptions, SurveyJobTempl
         return prompted_data, rejected_data, errors_dict
 
     def can_start_without_user_input(self):
-        return not bool(self.variables_needed_to_start)
+        if self.variables_needed_to_start:
+            return False
+        # Check node-level surveys for required variables
+        for node in self.workflow_job_template_nodes.filter(survey_enabled=True):
+            spec = node.survey_spec
+            if isinstance(spec, dict) and 'spec' in spec:
+                for q in spec['spec']:
+                    if q.get('required') and not q.get('default'):
+                        return False
+        return True
 
     def node_templates_missing(self):
         return [node.pk for node in self.workflow_job_template_nodes.filter(unified_job_template__isnull=True).all()]

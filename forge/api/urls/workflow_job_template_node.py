@@ -13,6 +13,7 @@ from forge.api.views import (
     WorkflowJobTemplateNodeCreateApproval,
     WorkflowJobTemplateNodeLabelsList,
     WorkflowJobTemplateNodeInstanceGroupsList,
+    WorkflowJobTemplateNodeSurveySpec,
 )
 
 
@@ -26,6 +27,7 @@ urls = [
     re_path(r'^(?P<pk>[0-9]+)/labels/$', WorkflowJobTemplateNodeLabelsList.as_view(), name='workflow_job_template_node_labels_list'),
     re_path(r'^(?P<pk>[0-9]+)/instance_groups/$', WorkflowJobTemplateNodeInstanceGroupsList.as_view(), name='workflow_job_template_node_instance_groups_list'),
     re_path(r'^(?P<pk>[0-9]+)/create_approval_template/$', WorkflowJobTemplateNodeCreateApproval.as_view(), name='workflow_job_template_node_create_approval'),
+    re_path(r'^(?P<pk>[0-9]+)/survey_spec/$', WorkflowJobTemplateNodeSurveySpec.as_view(), name='workflow_job_template_node_survey_spec'),
 ]
 
 __all__ = ['urls']

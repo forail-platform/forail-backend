@@ -90,6 +90,31 @@ class WorkflowJobTemplateNodeDetail(RetrieveUpdateDestroyAPIView):
     serializer_class = serializers.WorkflowJobTemplateNodeDetailSerializer
 
 
+class WorkflowJobTemplateNodeSurveySpec(RetrieveAPIView):
+    """Get or set the survey spec for a workflow node."""
+    model = models.WorkflowJobTemplateNode
+
+    def get(self, request, *args, **kwargs):
+        node = self.get_object()
+        if not node.survey_enabled or not node.survey_spec:
+            return Response({})
+        return Response(node.survey_spec)
+
+    def post(self, request, *args, **kwargs):
+        node = self.get_object()
+        node.survey_spec = request.data
+        node.survey_enabled = True
+        node.save(update_fields=['survey_spec', 'survey_enabled'])
+        return Response(node.survey_spec)
+
+    def delete(self, request, *args, **kwargs):
+        node = self.get_object()
+        node.survey_spec = {}
+        node.survey_enabled = False
+        node.save(update_fields=['survey_spec', 'survey_enabled'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 class WorkflowJobTemplateNodeCredentialsList(LaunchConfigCredentialsBase):
     parent_model = models.WorkflowJobTemplateNode
 

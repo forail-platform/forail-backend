@@ -457,6 +457,8 @@ class WorkflowJobTemplateNodeSerializer(LaunchConfigurationBaseSerializer):
             'always_nodes',
             'all_parents_must_converge',
             'identifier',
+            'survey_enabled',
+            'survey_spec',
         )
 
     def get_related(self, obj):
@@ -577,6 +579,8 @@ class WorkflowJobLaunchSerializer(BaseSerializer):
     limit = serializers.CharField(required=False, write_only=True, allow_blank=True)
     scm_branch = serializers.CharField(required=False, write_only=True, allow_blank=True)
     workflow_job_template_data = serializers.SerializerMethodField()
+    node_surveys = serializers.SerializerMethodField()
+    node_survey_data = serializers.JSONField(required=False, write_only=True, default=dict)
 
     labels = serializers.PrimaryKeyRelatedField(many=True, queryset=Label.objects.all(), required=False, write_only=True)
     skip_tags = serializers.CharField(required=False, write_only=True, allow_blank=True)
@@ -607,6 +611,8 @@ class WorkflowJobLaunchSerializer(BaseSerializer):
             'ask_tags_on_launch',
             'skip_tags',
             'job_tags',
+            'node_surveys',
+            'node_survey_data',
         )
         read_only_fields = (
             'ask_inventory_on_launch',
@@ -638,6 +644,24 @@ class WorkflowJobLaunchSerializer(BaseSerializer):
 
     def get_workflow_job_template_data(self, obj):
         return dict(name=obj.name, id=obj.id, description=obj.description)
+
+    def get_node_surveys(self, obj):
+        """Return survey specs for all nodes that have surveys enabled."""
+        result = []
+        for node in obj.workflow_job_template_nodes.filter(survey_enabled=True).select_related('unified_job_template'):
+            spec = node.survey_spec
+            if not isinstance(spec, dict) or 'spec' not in spec:
+                continue
+            template_name = ''
+            if node.unified_job_template:
+                template_name = node.unified_job_template.name
+            result.append({
+                'node_id': node.pk,
+                'identifier': node.identifier,
+                'node_name': template_name,
+                'survey_spec': spec,
+            })
+        return result
 
     def validate(self, attrs):
         template = self.instance
