@@ -313,6 +313,19 @@ curl -X POST https://forge.example.com/api/v2/drift_alert_rules/ \
   }'
 ```
 
+### Forge Analytics
+
+```bash
+GET    /api/v2/forge_analytics/                    # Root (links to all sub-endpoints)
+GET    /api/v2/forge_analytics/job_trends/         # Job duration trends (params: period, granularity)
+GET    /api/v2/forge_analytics/success_rate/       # Success/failure rates over time
+GET    /api/v2/forge_analytics/top_templates/      # Most-used templates (params: period, limit)
+GET    /api/v2/forge_analytics/busiest_hosts/      # Hosts with most activity
+GET    /api/v2/forge_analytics/host_coverage/      # Automation coverage per inventory
+GET    /api/v2/forge_analytics/failure_analysis/   # Failure breakdown by template and host
+GET    /api/v2/forge_analytics/time_savings/       # Time savings calculator (params: manual_multiplier)
+```
+
 ### Administration
 
 ```bash

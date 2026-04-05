@@ -89,6 +89,7 @@ from .analytics import urls as analytics_urls
 from .receptor_address import urls as receptor_address_urls
 from .eda import event_rule_urls, event_log_urls, outbound_webhook_urls, eda_webhook_urls
 from .drift import fact_snapshot_urls, drift_detection_urls, drift_alert_rule_urls, drift_alert_urls
+from .forge_analytics import urls as forge_analytics_urls
 
 v2_urls = [
     re_path(r'^$', ApiV2RootView.as_view(), name='api_v2_root_view'),
@@ -170,6 +171,7 @@ v2_urls = [
     re_path(r'^drift_detections/', include(drift_detection_urls)),
     re_path(r'^drift_alert_rules/', include(drift_alert_rule_urls)),
     re_path(r'^drift_alerts/', include(drift_alert_urls)),
+    re_path(r'^forge_analytics/', include(forge_analytics_urls)),
 ]
 
 
