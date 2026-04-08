@@ -70,6 +70,22 @@ class AdHocCommandList(ListCreateAPIView):
 
         # Start ad hoc command running when created.
         ad_hoc_command = get_object_or_400(self.model, pk=response.data['id'])
+
+        # Policy-as-Code gate (no-op when OPA is disabled)
+        from forge.main.policy.evaluator import evaluate_launch
+        policy_result = evaluate_launch(ad_hoc_command, request)
+        if not policy_result.allowed:
+            ad_hoc_command.delete()
+            return Response(
+                {'detail': 'Policy denied launch.', 'reasons': policy_result.deny_messages},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if policy_result.warn_messages:
+            existing = ad_hoc_command.job_explanation or ''
+            ad_hoc_command.job_explanation = (existing + '\nPolicy warnings: ' +
+                                               '; '.join(policy_result.warn_messages))[:1024]
+            ad_hoc_command.save(update_fields=['job_explanation'])
+
         result = ad_hoc_command.signal_start(**request.data)
         if not result:
             data = dict(passwords_needed_to_start=ad_hoc_command.passwords_needed_to_start)

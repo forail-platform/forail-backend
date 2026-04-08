@@ -978,3 +978,52 @@ def csrf_trusted_origins_validate(serializer, attrs):
 
 
 register_validate('system', csrf_trusted_origins_validate)
+
+
+# ============================================================================
+# Policy-as-Code (OPA)
+# ============================================================================
+
+register(
+    'OPA_ENABLED',
+    field_class=fields.BooleanField,
+    default=False,
+    label=_('Enable Policy-as-Code'),
+    help_text=_('Master switch. When off, no policies are evaluated and launches proceed normally.'),
+    category=_('Security'),
+    category_slug='security',
+)
+
+register(
+    'OPA_SERVER_URL',
+    field_class=fields.CharField,
+    allow_blank=True,
+    default='http://forge-opa:8181',
+    label=_('OPA Server URL'),
+    help_text=_('Base URL of the OPA Data API (sidecar). Reachable from forge-web.'),
+    category=_('Security'),
+    category_slug='security',
+)
+
+register(
+    'OPA_EVALUATION_TIMEOUT_MS',
+    field_class=fields.IntegerField,
+    min_value=100,
+    max_value=30000,
+    default=2000,
+    label=_('OPA Evaluation Timeout (ms)'),
+    help_text=_('How long to wait for OPA before giving up on a single launch decision.'),
+    category=_('Security'),
+    category_slug='security',
+)
+
+register(
+    'OPA_FAIL_MODE',
+    field_class=fields.ChoiceField,
+    choices=[('allow', _('Allow (fail-open)')), ('deny', _('Deny (fail-closed)'))],
+    default='allow',
+    label=_('OPA Fail Mode'),
+    help_text=_('What to do when OPA is unreachable. Production-grade installs should use deny.'),
+    category=_('Security'),
+    category_slug='security',
+)

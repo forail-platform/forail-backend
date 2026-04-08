@@ -336,6 +336,25 @@ The OIDC client redirects through `/sso/login/oidc/` (handled by
 `social-auth-app-django`). Configuration lives in Settings → Generic
 OIDC. See `docs/18-oidc-webauthn.md` for the full architecture.
 
+### Policy-as-Code (OPA)
+
+```bash
+GET    /api/v2/policies/                              # List (filter: enabled, applies_to, organization, search)
+POST   /api/v2/policies/                              # Create (admin)
+GET    /api/v2/policies/{id}/                         # Detail
+PATCH  /api/v2/policies/{id}/                         # Update
+DELETE /api/v2/policies/{id}/                         # Delete
+POST   /api/v2/policies/{id}/enable/                  # Enable
+POST   /api/v2/policies/{id}/disable/                 # Disable
+POST   /api/v2/policies/{id}/test/                    # Dry-run ({input: {...}})
+
+GET    /api/v2/policy_decisions/                      # Audit log (filter: decision, policy, unified_job, since)
+GET    /api/v2/policy_decisions/{id}/                 # Decision detail (full context JSON)
+```
+
+See `docs/19-policy-as-code.md` for the architecture, the OPA wire
+format, and the launch hook diagram.
+
 ### Drift Alert Rule — Create Example
 
 ```bash

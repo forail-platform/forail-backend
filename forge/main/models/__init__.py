@@ -92,6 +92,8 @@ from forge.main.models.webauthn import (  # noqa
     WebAuthnRegistrationChallenge,
     WebAuthnAuthenticationChallenge,
 )
+from forge.main.models.policy import Policy, PolicyDecision  # noqa
+import forge.main.policy.sync  # noqa: F401  -- registers post_save / post_delete signals
 from forge.main.models.label import Label  # noqa
 from forge.main.models.workflow import (  # noqa
     WorkflowJob,
@@ -320,9 +322,10 @@ activity_stream_registrar.connect(DriftAlertRule)
 activity_stream_registrar.connect(ServiceCatalogItem)
 activity_stream_registrar.connect(ServiceRequest)
 activity_stream_registrar.connect(WebAuthnCredential)
+activity_stream_registrar.connect(Policy)
 
 # Register models
-permission_registry.register(Project, Team, WorkflowJobTemplate, JobTemplate, Inventory, Organization, Credential, NotificationTemplate, ExecutionEnvironment, EventRule, OutboundWebhook, DriftAlertRule, ServiceCatalogItem)
+permission_registry.register(Project, Team, WorkflowJobTemplate, JobTemplate, Inventory, Organization, Credential, NotificationTemplate, ExecutionEnvironment, EventRule, OutboundWebhook, DriftAlertRule, ServiceCatalogItem, Policy)
 permission_registry.register(InstanceGroup, parent_field_name=None)  # Not part of an organization
 
 # prevent API filtering on certain Django-supplied sensitive fields

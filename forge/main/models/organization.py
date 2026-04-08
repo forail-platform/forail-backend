@@ -61,6 +61,16 @@ class Organization(CommonModel, NotificationFieldsModel, ResourceMixin, CustomVi
         ],
         help_text=_('Whether members of this organization must complete a WebAuthn assertion to finish login.'),
     )
+    policy_enforcement = models.CharField(
+        max_length=16,
+        default='none',
+        choices=[
+            ('none', _('Disabled')),
+            ('warn', _('Warn only')),
+            ('enforce', _('Enforce — block on deny')),
+        ],
+        help_text=_('Per-organization Policy-as-Code enforcement mode.'),
+    )
     notification_templates_approvals = models.ManyToManyField("NotificationTemplate", blank=True, related_name='%(class)s_notification_templates_for_approvals')
     default_environment = models.ForeignKey(
         'ExecutionEnvironment',

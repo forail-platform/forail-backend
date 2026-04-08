@@ -135,6 +135,22 @@ class JobTemplateLaunch(RetrieveAPIView):
 
         passwords = serializer.validated_data.pop('credential_passwords', {})
         new_job = obj.create_unified_job(**serializer.validated_data)
+
+        # Policy-as-Code gate (no-op when OPA is disabled)
+        from forge.main.policy.evaluator import evaluate_launch
+        policy_result = evaluate_launch(new_job, request)
+        if not policy_result.allowed:
+            new_job.delete()
+            return Response(
+                {'detail': 'Policy denied launch.', 'reasons': policy_result.deny_messages},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if policy_result.warn_messages:
+            existing = new_job.job_explanation or ''
+            new_job.job_explanation = (existing + '\nPolicy warnings: ' +
+                                        '; '.join(policy_result.warn_messages))[:1024]
+            new_job.save(update_fields=['job_explanation'])
+
         result = new_job.signal_start(**passwords)
 
         if not result:
