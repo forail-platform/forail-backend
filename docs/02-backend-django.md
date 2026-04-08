@@ -41,6 +41,7 @@ All models are in `forge/main/models/`. Each file covers one domain area:
 | `drift.py` | HostFactSnapshot, DriftDetection, DriftAlertRule, DriftAlert | Drift Detection — fact snapshots, change tracking, alert rules (see `docs/16-drift-detection.md`) |
 | `service_catalog.py` | ServiceCatalogItem, ServiceRequest | Self-Service Portal — curated catalog wrapping JT/WFJT, request lifecycle with optional approval (see `docs/17-self-service-portal.md`) |
 | `webauthn.py` | WebAuthnCredential, WebAuthnRegistrationChallenge, WebAuthnAuthenticationChallenge | FIDO2 / WebAuthn — passwordless and second-factor authentication (see `docs/18-oidc-webauthn.md`) |
+| `policy.py` | Policy, PolicyDecision | Policy-as-Code (OPA) — Rego rules evaluated before every launch (see `docs/19-policy-as-code.md`) |
 | `rbac.py` | Role | RBAC system — roles and permissions |
 | `oauth.py` | OAuth2Application, Token | API tokens |
 | `execution_environments.py` | ExecutionEnvironment | Container image reference for execution |

@@ -81,6 +81,13 @@ Role ──M:N──► User
 | `main_webauthnregistrationchallenge` | Short-lived (5 min) registration challenges | Volatile — purged on every begin call |
 | `main_webauthnauthenticationchallenge` | Short-lived (5 min) assertion challenges | Volatile — purged on every begin call |
 
+### Policy-as-Code
+
+| Table | Description | Growth rate |
+|-------|-------------|-------------|
+| `main_policy` | Stored Rego policies pushed to OPA on save | Slow |
+| `main_policydecision` | One row per evaluation hit (warn or deny) | Medium-fast |
+
 ### Execution (GROW FAST — cleanup required)
 
 | Table | Description | Growth rate |
