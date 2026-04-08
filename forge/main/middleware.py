@@ -150,6 +150,74 @@ class DisableLocalAuthMiddleware(MiddlewareMixin):
                 logout(request)
 
 
+class WebAuthnMfaEnforcementMiddleware(MiddlewareMixin):
+    """
+    After primary auth completes, if any organization the user belongs to
+    requires WebAuthn for them, mark the session as `mfa_pending`. The
+    frontend interstitial drives the user through a WebAuthn assertion
+    against /api/v2/webauthn/authenticate/{begin,complete}/, which clears
+    the flag.
+
+    Skips: anonymous users, the WebAuthn endpoints themselves, /api/login,
+    /api/logout, and the static SSO callback paths.
+    """
+
+    SAFE_PATHS = (
+        '/api/v2/webauthn/',
+        '/api/login/',
+        '/api/logout/',
+        '/sso/',
+        '/api/v2/me/',
+        '/api/v2/ping/',
+        '/api/v2/config/',
+    )
+
+    def process_request(self, request):
+        user = getattr(request, 'user', None)
+        if not user or not user.is_authenticated:
+            return
+
+        path = request.path or ''
+        for prefix in self.SAFE_PATHS:
+            if path.startswith(prefix):
+                return
+
+        session = request.session
+        if session.get('mfa_pending'):
+            # Already flagged — let the frontend handle it
+            return
+
+        if session.get('mfa_satisfied_for') == user.id:
+            return
+
+        try:
+            from forge.main.models.webauthn import is_webauthn_required
+            from forge.main.models.organization import Organization
+        except Exception:
+            return
+
+        is_admin = user.is_superuser or user.admin_of_organizations.exists() if hasattr(user, 'admin_of_organizations') else user.is_superuser
+
+        # If any of the user's orgs require WebAuthn for this user, enforce.
+        try:
+            org_settings = Organization.objects.filter(
+                member_role__members=user,
+            ).values_list('webauthn_required', flat=True)
+        except Exception:
+            org_settings = []
+
+        required = any(is_webauthn_required(s, is_admin) for s in org_settings)
+        if not required:
+            session['mfa_satisfied_for'] = user.id
+            session.modified = True
+            return
+
+        # Mark pending and remember which user is being challenged
+        session['mfa_pending'] = True
+        session['mfa_pending_user'] = user.id
+        session.modified = True
+
+
 class URLModificationMiddleware(MiddlewareMixin):
     @staticmethod
     def _hijack_for_old_jt_name(node, kwargs, named_url):

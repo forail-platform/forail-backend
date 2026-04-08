@@ -267,6 +267,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     # Must be after AuthenticationMiddleware - needs request.user
     'forge.main.middleware.DisableLocalAuthMiddleware',
+    # Enforces org-level WebAuthn MFA after primary auth
+    'forge.main.middleware.WebAuthnMfaEnforcementMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     # URL routing based on optional prefix
     'forge.main.middleware.OptionalURLPrefixPath',

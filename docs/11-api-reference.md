@@ -318,6 +318,24 @@ POST   /api/v2/service_requests/{id}/reject/            # Reject ({reason})
 See `docs/17-self-service-portal.md` for the lifecycle, approver
 permission rules, and a deeper architectural overview.
 
+### WebAuthn / FIDO2
+
+```bash
+GET    /api/v2/webauthn/credentials/                    # List your registered credentials
+PATCH  /api/v2/webauthn/credentials/{id}/               # Rename ({label})
+DELETE /api/v2/webauthn/credentials/{id}/               # Delete a credential
+
+POST   /api/v2/webauthn/register/begin/                 # publicKeyCredentialCreationOptions
+POST   /api/v2/webauthn/register/complete/              # Verify attestation, store credential
+
+POST   /api/v2/webauthn/authenticate/begin/             # publicKeyCredentialRequestOptions ({username?})
+POST   /api/v2/webauthn/authenticate/complete/          # Verify assertion → MFA satisfied OR passwordless login
+```
+
+The OIDC client redirects through `/sso/login/oidc/` (handled by
+`social-auth-app-django`). Configuration lives in Settings → Generic
+OIDC. See `docs/18-oidc-webauthn.md` for the full architecture.
+
 ### Drift Alert Rule — Create Example
 
 ```bash

@@ -91,6 +91,7 @@ from .eda import event_rule_urls, event_log_urls, outbound_webhook_urls, eda_web
 from .drift import fact_snapshot_urls, drift_detection_urls, drift_alert_rule_urls, drift_alert_urls
 from .forge_analytics import urls as forge_analytics_urls
 from .service_catalog import service_catalog_item_urls, service_request_urls
+from .webauthn import urls as webauthn_urls
 
 v2_urls = [
     re_path(r'^$', ApiV2RootView.as_view(), name='api_v2_root_view'),
@@ -175,6 +176,7 @@ v2_urls = [
     re_path(r'^forge_analytics/', include(forge_analytics_urls)),
     re_path(r'^service_catalog_items/', include(service_catalog_item_urls)),
     re_path(r'^service_requests/', include(service_request_urls)),
+    re_path(r'^webauthn/', include(webauthn_urls)),
 ]
 
 

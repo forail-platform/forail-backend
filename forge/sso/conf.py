@@ -1665,3 +1665,37 @@ if settings.ALLOW_LOCAL_RESOURCE_MANAGEMENT:
         return attrs
 
     register_validate('tacacsplus', tacacs_validate)
+
+    # ------------------------------------------------------------------
+    # OIDC additions on top of the existing Generic OIDC settings
+    # (KEY/SECRET/OIDC_ENDPOINT/VERIFY_SSL are already registered above).
+    # ------------------------------------------------------------------
+
+    register(
+        'SOCIAL_AUTH_OIDC_BUTTON_LABEL',
+        field_class=fields.CharField,
+        allow_blank=True,
+        default='Sign in with OIDC',
+        label=_('OIDC Login Button Label'),
+        help_text=_('Text shown on the login page button. Hidden if OIDC is not configured.'),
+        category=_('OIDC'),
+        category_slug='oidc',
+    )
+    register(
+        'SOCIAL_AUTH_OIDC_ORGANIZATION_MAP',
+        field_class=fields.DictField,
+        default={},
+        label=_('OIDC Organization Map'),
+        help_text=_('JSON map describing how OIDC users are placed into Forge organizations. Same shape as the SAML org map.'),
+        category=_('OIDC'),
+        category_slug='oidc',
+    )
+    register(
+        'SOCIAL_AUTH_OIDC_TEAM_MAP',
+        field_class=fields.DictField,
+        default={},
+        label=_('OIDC Team Map'),
+        help_text=_('JSON map describing how OIDC users are placed into Forge teams. Same shape as the SAML team map.'),
+        category=_('OIDC'),
+        category_slug='oidc',
+    )

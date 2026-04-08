@@ -460,3 +460,38 @@ def on_populate_user(sender, **kwargs):
         profile.save()
 
     reconcile_users_org_team_mappings(user, desired_org_states, desired_team_states, 'LDAP')
+
+
+# ============================================================================
+# OIDC (Generic OpenID Connect)
+# ============================================================================
+
+try:
+    from social_core.backends.open_id_connect import OpenIdConnectAuth as BaseOIDCAuth
+except Exception:  # pragma: no cover
+    BaseOIDCAuth = None
+
+
+if BaseOIDCAuth is not None:
+    class ForgeOIDCAuth(BaseOIDCAuth):
+        """Generic OIDC backend wired into the existing social pipeline.
+
+        Configuration is read from DB-backed settings declared in
+        forge/sso/conf.py:
+          SOCIAL_AUTH_OIDC_OIDC_ENDPOINT
+          SOCIAL_AUTH_OIDC_KEY
+          SOCIAL_AUTH_OIDC_SECRET
+          SOCIAL_AUTH_OIDC_SCOPE (default ["openid","profile","email"])
+          SOCIAL_AUTH_OIDC_VERIFY_SSL
+        """
+
+        name = "oidc"
+
+        def get_user_details(self, response):
+            details = super().get_user_details(response)
+            # Mirror the username off the email if the IdP omitted preferred_username
+            if not details.get("username"):
+                details["username"] = (response.get("preferred_username")
+                                       or response.get("email") or "")
+            return details
+

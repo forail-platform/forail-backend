@@ -51,6 +51,16 @@ class Organization(CommonModel, NotificationFieldsModel, ResourceMixin, CustomVi
         default=0,
         help_text=_('Maximum number of hosts allowed to be managed by this organization.'),
     )
+    webauthn_required = models.CharField(
+        max_length=16,
+        default='none',
+        choices=[
+            ('none', _('Not required')),
+            ('admins', _('Required for admins only')),
+            ('all', _('Required for all members')),
+        ],
+        help_text=_('Whether members of this organization must complete a WebAuthn assertion to finish login.'),
+    )
     notification_templates_approvals = models.ManyToManyField("NotificationTemplate", blank=True, related_name='%(class)s_notification_templates_for_approvals')
     default_environment = models.ForeignKey(
         'ExecutionEnvironment',

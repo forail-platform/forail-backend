@@ -87,6 +87,11 @@ from forge.main.models.notifications import Notification, NotificationTemplate, 
 from forge.main.models.eda import EventRule, EventLog, OutboundWebhook  # noqa
 from forge.main.models.drift import HostFactSnapshot, DriftDetection, DriftAlertRule, DriftAlert  # noqa
 from forge.main.models.service_catalog import ServiceCatalogItem, ServiceRequest  # noqa
+from forge.main.models.webauthn import (  # noqa
+    WebAuthnCredential,
+    WebAuthnRegistrationChallenge,
+    WebAuthnAuthenticationChallenge,
+)
 from forge.main.models.label import Label  # noqa
 from forge.main.models.workflow import (  # noqa
     WorkflowJob,
@@ -314,6 +319,7 @@ activity_stream_registrar.connect(OutboundWebhook)
 activity_stream_registrar.connect(DriftAlertRule)
 activity_stream_registrar.connect(ServiceCatalogItem)
 activity_stream_registrar.connect(ServiceRequest)
+activity_stream_registrar.connect(WebAuthnCredential)
 
 # Register models
 permission_registry.register(Project, Team, WorkflowJobTemplate, JobTemplate, Inventory, Organization, Credential, NotificationTemplate, ExecutionEnvironment, EventRule, OutboundWebhook, DriftAlertRule, ServiceCatalogItem)

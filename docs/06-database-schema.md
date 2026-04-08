@@ -73,6 +73,14 @@ Role ──M:N──► User
 | `main_servicecatalogitem` | Curated portal entries wrapping JT/WFJT | Slow (admin-curated) |
 | `main_servicerequest` | End-user requests with lifecycle (pending → approved/rejected → running → terminal) | Medium |
 
+### Authentication (WebAuthn / FIDO2)
+
+| Table | Description | Growth rate |
+|-------|-------------|-------------|
+| `main_webauthncredential` | FIDO2 credentials owned by users | Slow (one or two per user) |
+| `main_webauthnregistrationchallenge` | Short-lived (5 min) registration challenges | Volatile — purged on every begin call |
+| `main_webauthnauthenticationchallenge` | Short-lived (5 min) assertion challenges | Volatile — purged on every begin call |
+
 ### Execution (GROW FAST — cleanup required)
 
 | Table | Description | Growth rate |
