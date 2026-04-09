@@ -36,6 +36,11 @@ CELERYBEAT_SCHEDULE = {
     'cleanup_host_metrics': {'task': 'forge.main.tasks.host_metrics.cleanup_host_metrics', 'schedule': timedelta(hours=3, minutes=30)},
     'host_metric_summary_monthly': {'task': 'forge.main.tasks.host_metrics.host_metric_summary_monthly', 'schedule': timedelta(hours=4)},
     'periodic_resource_sync': {'task': 'forge.main.tasks.system.periodic_resource_sync', 'schedule': timedelta(minutes=15)},
+    'observability_active_jobs': {
+        'task': 'forge.main.tasks.observability.update_active_jobs_gauge_task',
+        'schedule': timedelta(seconds=30),
+        'options': {'expires': 25},
+    },
 }
 
 # Django Caching Configuration

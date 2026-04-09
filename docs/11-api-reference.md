@@ -374,6 +374,29 @@ See `docs/20-iac-scanning.md` for the architecture, tool adapters
 (ansible-lint / checkov / pip-audit), severity threshold model, and
 the launch hook diagram.
 
+### Observability (OpenTelemetry)
+
+```bash
+GET    /api/v2/observability/                          # Current OTel config + best-effort collector health probe (admin only)
+```
+
+Response shape:
+
+```json
+{
+  "enabled": true,
+  "service_name": "forge",
+  "exporter_endpoint": "http://forge-otel-collector:4317",
+  "sampler": "parentbased_traceidratio",
+  "sampler_arg": "0.1",
+  "collector_healthy": true,
+  "collector_last_check": "2026-04-09T15:42:00Z"
+}
+```
+
+See `docs/21-observability.md` for the architecture, env vars,
+instrumented seams, and metric catalog.
+
 ### Drift Alert Rule — Create Example
 
 ```bash

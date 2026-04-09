@@ -71,37 +71,55 @@ class AdHocCommandList(ListCreateAPIView):
         # Start ad hoc command running when created.
         ad_hoc_command = get_object_or_400(self.model, pk=response.data['id'])
 
-        # Policy-as-Code gate (no-op when OPA is disabled)
-        from forge.main.policy.evaluator import evaluate_launch
-        policy_result = evaluate_launch(ad_hoc_command, request)
-        if not policy_result.allowed:
-            ad_hoc_command.delete()
-            return Response(
-                {'detail': 'Policy denied launch.', 'reasons': policy_result.deny_messages},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-        if policy_result.warn_messages:
-            existing = ad_hoc_command.job_explanation or ''
-            ad_hoc_command.job_explanation = (existing + '\nPolicy warnings: ' +
-                                               '; '.join(policy_result.warn_messages))[:1024]
-            ad_hoc_command.save(update_fields=['job_explanation'])
+        from forge.main.observability.tracing import span
+        from forge.main.observability import metrics as _otel_metrics
 
-        # IaC Scanning gate (no-op when SCANNER_ENABLED is False)
-        from forge.main.scanning.runner import run_scanners_for_launch
-        scan_result = run_scanners_for_launch(ad_hoc_command, request)
-        if not scan_result.allowed:
-            ad_hoc_command.delete()
-            return Response(
-                {'detail': 'Scanner blocked launch.', 'reasons': scan_result.block_messages},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-        if scan_result.warn_messages:
-            existing = ad_hoc_command.job_explanation or ''
-            ad_hoc_command.job_explanation = (existing + '\nScan warnings: ' +
-                                               '; '.join(scan_result.warn_messages))[:1024]
-            ad_hoc_command.save(update_fields=['job_explanation'])
+        with span(
+            'forge.launch',
+            template_id=getattr(ad_hoc_command, 'id', None),
+            template_type='ad_hoc_command',
+            user_id=getattr(request.user, 'id', None),
+            organization_id=getattr(getattr(ad_hoc_command, 'inventory', None), 'organization_id', None),
+        ) as launch_span:
+            # Policy-as-Code gate (no-op when OPA is disabled)
+            from forge.main.policy.evaluator import evaluate_launch
+            policy_result = evaluate_launch(ad_hoc_command, request)
+            if not policy_result.allowed:
+                launch_span.set_attribute('result', 'blocked')
+                launch_span.set_attribute('gate_blocked', 'policy')
+                _otel_metrics.inc_jobs_blocked('policy')
+                ad_hoc_command.delete()
+                return Response(
+                    {'detail': 'Policy denied launch.', 'reasons': policy_result.deny_messages},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            if policy_result.warn_messages:
+                existing = ad_hoc_command.job_explanation or ''
+                ad_hoc_command.job_explanation = (existing + '\nPolicy warnings: ' +
+                                                   '; '.join(policy_result.warn_messages))[:1024]
+                ad_hoc_command.save(update_fields=['job_explanation'])
 
-        result = ad_hoc_command.signal_start(**request.data)
+            # IaC Scanning gate (no-op when SCANNER_ENABLED is False)
+            from forge.main.scanning.runner import run_scanners_for_launch
+            scan_result = run_scanners_for_launch(ad_hoc_command, request)
+            if not scan_result.allowed:
+                launch_span.set_attribute('result', 'blocked')
+                launch_span.set_attribute('gate_blocked', 'scanner')
+                _otel_metrics.inc_jobs_blocked('scanner')
+                ad_hoc_command.delete()
+                return Response(
+                    {'detail': 'Scanner blocked launch.', 'reasons': scan_result.block_messages},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            if scan_result.warn_messages:
+                existing = ad_hoc_command.job_explanation or ''
+                ad_hoc_command.job_explanation = (existing + '\nScan warnings: ' +
+                                                   '; '.join(scan_result.warn_messages))[:1024]
+                ad_hoc_command.save(update_fields=['job_explanation'])
+
+            launch_span.set_attribute('result', 'allowed')
+            _otel_metrics.inc_jobs_launched('ad_hoc_command', 'launched')
+            result = ad_hoc_command.signal_start(**request.data)
         if not result:
             data = dict(passwords_needed_to_start=ad_hoc_command.passwords_needed_to_start)
             ad_hoc_command.delete()

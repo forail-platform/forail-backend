@@ -94,6 +94,7 @@ from .service_catalog import service_catalog_item_urls, service_request_urls
 from .webauthn import urls as webauthn_urls
 from .policy import policy_urls, policy_decision_urls
 from .scanner import scanner_urls, scan_result_urls
+from .observability import observability_urls
 
 v2_urls = [
     re_path(r'^$', ApiV2RootView.as_view(), name='api_v2_root_view'),
@@ -183,6 +184,7 @@ v2_urls = [
     re_path(r'^policy_decisions/', include(policy_decision_urls)),
     re_path(r'^scanners/', include(scanner_urls)),
     re_path(r'^scan_results/', include(scan_result_urls)),
+    re_path(r'^observability/', include(observability_urls)),
 ]
 
 

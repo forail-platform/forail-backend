@@ -1077,3 +1077,76 @@ register(
     category=_('Security'),
     category_slug='security',
 )
+
+
+# ============================================================================
+# Observability (OpenTelemetry)
+# ============================================================================
+
+register(
+    'OTEL_ENABLED',
+    field_class=fields.BooleanField,
+    default=False,
+    label=_('Enable OpenTelemetry'),
+    help_text=_('Master switch. When off, the OTel SDK is not even imported.'),
+    category=_('System'),
+    category_slug='system',
+)
+
+register(
+    'OTEL_EXPORTER_ENDPOINT',
+    field_class=fields.CharField,
+    allow_blank=True,
+    default='http://forge-otel-collector:4317',
+    label=_('OTel Exporter Endpoint'),
+    help_text=_('OTLP endpoint the SDK sends traces and metrics to. Typically an in-cluster Collector sidecar.'),
+    category=_('System'),
+    category_slug='system',
+)
+
+register(
+    'OTEL_SERVICE_NAME',
+    field_class=fields.CharField,
+    default='forge',
+    label=_('OTel Service Name'),
+    help_text=_('Value emitted as the service.name resource attribute.'),
+    category=_('System'),
+    category_slug='system',
+)
+
+register(
+    'OTEL_RESOURCE_ATTRIBUTES',
+    field_class=fields.CharField,
+    allow_blank=True,
+    default='',
+    label=_('OTel Resource Attributes'),
+    help_text=_('Comma-separated key=value pairs merged into the resource (e.g. deployment.environment=prod,team=platform).'),
+    category=_('System'),
+    category_slug='system',
+)
+
+register(
+    'OTEL_TRACES_SAMPLER',
+    field_class=fields.ChoiceField,
+    choices=[
+        ('always_on', _('always_on')),
+        ('always_off', _('always_off')),
+        ('traceidratio', _('traceidratio')),
+        ('parentbased_traceidratio', _('parentbased_traceidratio')),
+    ],
+    default='parentbased_traceidratio',
+    label=_('OTel Traces Sampler'),
+    help_text=_('Span sampling strategy. Matches OTEL_TRACES_SAMPLER env var semantics.'),
+    category=_('System'),
+    category_slug='system',
+)
+
+register(
+    'OTEL_TRACES_SAMPLER_ARG',
+    field_class=fields.CharField,
+    default='0.1',
+    label=_('OTel Traces Sampler Arg'),
+    help_text=_('Float in [0,1] used by ratio samplers. Invalid values fall back to 0.1.'),
+    category=_('System'),
+    category_slug='system',
+)

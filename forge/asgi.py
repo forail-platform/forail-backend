@@ -36,4 +36,12 @@ if MODE == 'production':
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "forge.settings")
 django.setup()
+
+# Observability: no-op when OTEL_ENABLED is False (never imports the SDK).
+try:
+    from forge.main.observability import init_observability
+    init_observability()
+except Exception:  # pylint: disable=broad-except
+    pass
+
 channel_layer = get_default_application()

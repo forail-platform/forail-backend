@@ -37,6 +37,11 @@ python -m unittest tests_standalone.test_policy -v
 # fail_mode_decision, ansible-lint / checkov / pip-audit adapter parsers)
 python -m unittest tests_standalone.test_scanner -v
 
+# Run Observability tests (OTel helpers: resource attribute parser, sampler
+# ratio validation, endpoint parsing, grpc/http detection, cached health
+# aggregation)
+python -m unittest tests_standalone.test_observability -v
+
 # Run all standalone tests
 python -m unittest discover tests_standalone -v
 ```

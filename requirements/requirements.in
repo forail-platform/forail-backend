@@ -79,3 +79,13 @@ pkgconfig>=1.5.1  # xmlsec build dep - needed for offline build
 # Temporarily added to use ansible-runner from git branch, to be removed
 # when ansible-runner moves from requirements_git.txt to here
 pbr
+
+# Observability (Tier 3.6 — OpenTelemetry). Pinned to a single train so
+# API/SDK/exporter/instrumentation versions stay compatible.
+opentelemetry-api==1.27.0
+opentelemetry-sdk==1.27.0
+opentelemetry-exporter-otlp==1.27.0
+opentelemetry-instrumentation-django==0.48b0
+opentelemetry-instrumentation-celery==0.48b0
+opentelemetry-instrumentation-requests==0.48b0
+opentelemetry-instrumentation-psycopg2==0.48b0

@@ -137,14 +137,23 @@ def evaluate_launch(unified_job, request=None):
     user = getattr(request, 'user', None)
     template = getattr(unified_job, 'unified_job_template', None) or getattr(unified_job, 'job_template', None)
 
+    from forge.main.observability.tracing import span as _otel_span
+    from forge.main.observability import metrics as _otel_metrics
+
     for policy in policies:
         eff = effective_enforcement(True, org_enforcement, policy.enforcement)
         if eff == ENFORCEMENT_NONE:
             continue
 
         try:
-            opa_result = opa_evaluate(server_url, policy.package_path, context, timeout_ms)
+            with _otel_span(
+                'forge.policy.evaluate',
+                policy_id=getattr(policy, 'id', None),
+                policy_name=getattr(policy, 'name', ''),
+            ):
+                opa_result = opa_evaluate(server_url, policy.package_path, context, timeout_ms)
             warns, denies = parse_decision(opa_result)
+            _otel_metrics.inc_policy_evaluations('deny' if denies else ('warn' if warns else 'allow'))
         except OPAUnavailable as e:
             decision_kind = fail_mode_decision(True, fail_mode)
             msg = f'OPA unavailable: {e}'

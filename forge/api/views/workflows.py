@@ -353,37 +353,55 @@ class WorkflowJobTemplateLaunch(RetrieveAPIView):
 
         new_job = obj.create_unified_job(**serializer.validated_data)
 
-        # Policy-as-Code gate (no-op when OPA is disabled)
-        from forge.main.policy.evaluator import evaluate_launch
-        policy_result = evaluate_launch(new_job, request)
-        if not policy_result.allowed:
-            new_job.delete()
-            return Response(
-                {'detail': 'Policy denied launch.', 'reasons': policy_result.deny_messages},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-        if policy_result.warn_messages:
-            existing = new_job.job_explanation or ''
-            new_job.job_explanation = (existing + '\nPolicy warnings: ' +
-                                        '; '.join(policy_result.warn_messages))[:1024]
-            new_job.save(update_fields=['job_explanation'])
+        from forge.main.observability.tracing import span
+        from forge.main.observability import metrics as _otel_metrics
 
-        # IaC Scanning gate (no-op when SCANNER_ENABLED is False)
-        from forge.main.scanning.runner import run_scanners_for_launch
-        scan_result = run_scanners_for_launch(new_job, request)
-        if not scan_result.allowed:
-            new_job.delete()
-            return Response(
-                {'detail': 'Scanner blocked launch.', 'reasons': scan_result.block_messages},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-        if scan_result.warn_messages:
-            existing = new_job.job_explanation or ''
-            new_job.job_explanation = (existing + '\nScan warnings: ' +
-                                        '; '.join(scan_result.warn_messages))[:1024]
-            new_job.save(update_fields=['job_explanation'])
+        with span(
+            'forge.launch',
+            template_id=getattr(obj, 'id', None),
+            template_type='workflow_job_template',
+            user_id=getattr(request.user, 'id', None),
+            organization_id=getattr(getattr(obj, 'organization', None), 'id', None),
+        ) as launch_span:
+            # Policy-as-Code gate (no-op when OPA is disabled)
+            from forge.main.policy.evaluator import evaluate_launch
+            policy_result = evaluate_launch(new_job, request)
+            if not policy_result.allowed:
+                launch_span.set_attribute('result', 'blocked')
+                launch_span.set_attribute('gate_blocked', 'policy')
+                _otel_metrics.inc_jobs_blocked('policy')
+                new_job.delete()
+                return Response(
+                    {'detail': 'Policy denied launch.', 'reasons': policy_result.deny_messages},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            if policy_result.warn_messages:
+                existing = new_job.job_explanation or ''
+                new_job.job_explanation = (existing + '\nPolicy warnings: ' +
+                                            '; '.join(policy_result.warn_messages))[:1024]
+                new_job.save(update_fields=['job_explanation'])
 
-        new_job.signal_start()
+            # IaC Scanning gate (no-op when SCANNER_ENABLED is False)
+            from forge.main.scanning.runner import run_scanners_for_launch
+            scan_result = run_scanners_for_launch(new_job, request)
+            if not scan_result.allowed:
+                launch_span.set_attribute('result', 'blocked')
+                launch_span.set_attribute('gate_blocked', 'scanner')
+                _otel_metrics.inc_jobs_blocked('scanner')
+                new_job.delete()
+                return Response(
+                    {'detail': 'Scanner blocked launch.', 'reasons': scan_result.block_messages},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            if scan_result.warn_messages:
+                existing = new_job.job_explanation or ''
+                new_job.job_explanation = (existing + '\nScan warnings: ' +
+                                            '; '.join(scan_result.warn_messages))[:1024]
+                new_job.save(update_fields=['job_explanation'])
+
+            launch_span.set_attribute('result', 'allowed')
+            _otel_metrics.inc_jobs_launched('workflow_job_template', 'launched')
+            new_job.signal_start()
 
         data = OrderedDict()
         data['workflow_job'] = new_job.id

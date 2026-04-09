@@ -40,3 +40,10 @@ if MODE == 'production':
 
 # Return the default Django WSGI application.
 application = get_wsgi_application()
+
+# Observability: no-op when OTEL_ENABLED is False (never imports the SDK).
+try:
+    from forge.main.observability import init_observability
+    init_observability()
+except Exception:  # pylint: disable=broad-except
+    pass

@@ -124,6 +124,9 @@ def run_scanners_for_launch(unified_job, request=None):
 
     project_path = _resolve_project_path(unified_job)
 
+    from forge.main.observability.tracing import span as _otel_span
+    from forge.main.observability import metrics as _otel_metrics
+
     for scanner in scanners:
         eff = effective_enforcement(True, scanner.enforcement)
         adapter = get_adapter(scanner.tool)
@@ -144,12 +147,14 @@ def run_scanners_for_launch(unified_job, request=None):
         returncode = 0
         unavailable = False
         try:
-            proc = subprocess.run(
-                cmd,
-                timeout=timeout_s,
-                capture_output=True,
-                text=True,
-            )
+            with _otel_span('forge.scanner.run', tool=getattr(scanner, 'tool', ''),
+                            scanner_name=getattr(scanner, 'name', '')):
+                proc = subprocess.run(
+                    cmd,
+                    timeout=timeout_s,
+                    capture_output=True,
+                    text=True,
+                )
             stdout = proc.stdout or ''
             stderr = proc.stderr or ''
             returncode = proc.returncode
@@ -189,6 +194,7 @@ def run_scanners_for_launch(unified_job, request=None):
                 highest = f.severity
 
         if unavailable:
+            _otel_metrics.inc_scan_runs(status)
             decision_kind = fail_mode_decision(True, fail_mode)
             message = stderr[:512] or f'Scanner {scanner.tool} unavailable.'
             sr = ScanResult.objects.create(
@@ -216,6 +222,8 @@ def run_scanners_for_launch(unified_job, request=None):
             else:
                 result.warn_messages.append(f'[{scanner.name}] {message}')
             continue
+
+        _otel_metrics.inc_scan_runs('ok' if not filtered else 'findings')
 
         if not filtered:
             sr_status = STATUS_OK
