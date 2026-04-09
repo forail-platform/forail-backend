@@ -42,6 +42,11 @@ python -m unittest tests_standalone.test_scanner -v
 # aggregation)
 python -m unittest tests_standalone.test_observability -v
 
+# Run Multi-Tenancy tests (quota helpers, window rollover, branding host
+# normalization, hex color validation, QuotaResult aggregation, provisioning
+# payload validation)
+python -m unittest tests_standalone.test_tenancy -v
+
 # Run all standalone tests
 python -m unittest discover tests_standalone -v
 ```

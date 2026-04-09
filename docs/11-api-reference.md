@@ -397,6 +397,31 @@ Response shape:
 See `docs/21-observability.md` for the architecture, env vars,
 instrumented seams, and metric catalog.
 
+### Multi-Tenancy (Tier 3.2)
+
+```bash
+GET    /api/v2/tenants/                               # List tenant orgs (superuser)
+POST   /api/v2/tenants/                               # Provision a tenant: Org + admin user + team + TenantUsage (atomic)
+GET    /api/v2/tenants/{id}/                          # Detail with embedded usage, quota, branding
+PATCH  /api/v2/tenants/{id}/                          # Update quotas / branding
+DELETE /api/v2/tenants/{id}/?confirm=true             # Wipe the tenant + all its content (fails if running jobs > 0)
+POST   /api/v2/tenants/{id}/recalculate/              # Force usage recompute (hosts, storage, concurrent drift)
+
+GET    /api/v2/tenant_quota_events/                   # Audit log (filter: organization, quota_kind, decision, since)
+
+GET    /api/v2/branding/?host=<hostname>              # PUBLIC (no auth) — tenant branding lookup, 404 on miss
+```
+
+**The branding endpoint is public by design** — the frontend calls it on app
+boot to skin itself before the login screen, so it must accept anonymous
+requests and never requires credentials.
+
+All `/api/v2/tenants/*` endpoints require `is_superuser` in v1 (provisioning
+is an operator action). Quotas with `null` value are unlimited.
+
+See `docs/22-multi-tenancy.md` for the architecture, models, launch hook
+order, and verification steps.
+
 ### Drift Alert Rule — Create Example
 
 ```bash

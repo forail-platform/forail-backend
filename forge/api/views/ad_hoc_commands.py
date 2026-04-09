@@ -81,6 +81,17 @@ class AdHocCommandList(ListCreateAPIView):
             user_id=getattr(request.user, 'id', None),
             organization_id=getattr(getattr(ad_hoc_command, 'inventory', None), 'organization_id', None),
         ) as launch_span:
+            # Tenant quota gate (no-op when TENANCY_ENABLED is False)
+            from forge.main.tenancy.quota import check_tenant_quota
+            quota_result = check_tenant_quota(ad_hoc_command, request)
+            if not quota_result.allowed:
+                launch_span.set_attribute('result', 'blocked')
+                launch_span.set_attribute('gate_blocked', 'tenant_quota')
+                ad_hoc_command.delete()
+                return Response(
+                    {'detail': 'Tenant quota exceeded.', 'reasons': quota_result.reasons},
+                    status=status.HTTP_429_TOO_MANY_REQUESTS,
+                )
             # Policy-as-Code gate (no-op when OPA is disabled)
             from forge.main.policy.evaluator import evaluate_launch
             policy_result = evaluate_launch(ad_hoc_command, request)

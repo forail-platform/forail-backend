@@ -264,6 +264,28 @@ m2m_changed.connect(sync_rbac_to_superuser_status, Role.members.through)
 pre_delete.connect(cleanup_detached_labels_on_deleted_parent, sender=UnifiedJob)
 pre_delete.connect(cleanup_detached_labels_on_deleted_parent, sender=UnifiedJobTemplate)
 
+
+# -----------------------------------------------------------------------------
+# Multi-Tenancy v1 — decrement tenant concurrent_jobs_count on terminal states.
+# -----------------------------------------------------------------------------
+
+_TENANCY_TERMINAL_STATUSES = ('successful', 'failed', 'error', 'canceled')
+
+
+def _tenancy_on_unified_job_save(sender, instance, created, **kwargs):
+    if created:
+        return
+    if getattr(instance, 'status', None) not in _TENANCY_TERMINAL_STATUSES:
+        return
+    try:
+        from forge.main.tenancy.quota import on_job_finished
+        on_job_finished(instance)
+    except Exception:  # pylint: disable=broad-except
+        pass
+
+
+post_save.connect(_tenancy_on_unified_job_save, sender=UnifiedJob)
+
 # -----------------------------------------------------------------------------
 # Group deletion – migrate hosts/children to parent groups
 # -----------------------------------------------------------------------------

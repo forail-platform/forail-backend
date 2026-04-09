@@ -133,6 +133,19 @@ class Organization(CommonModel, NotificationFieldsModel, ResourceMixin, CustomVi
     )
     resource = AnsibleResourceField(primary_key_field="id")
 
+    # --- Multi-Tenancy v1 fields ---------------------------------------------
+    is_tenant_root = models.BooleanField(default=False)
+    tenant_max_concurrent_jobs = models.PositiveIntegerField(null=True, blank=True)
+    tenant_max_daily_launches = models.PositiveIntegerField(null=True, blank=True)
+    tenant_max_hosts = models.PositiveIntegerField(null=True, blank=True)
+    tenant_max_storage_mb = models.PositiveIntegerField(null=True, blank=True)
+    tenant_isolation_strict = models.BooleanField(default=False)
+    tenant_logo_url = models.CharField(max_length=512, blank=True, default='')
+    tenant_primary_color = models.CharField(max_length=16, blank=True, default='')
+    tenant_secondary_color = models.CharField(max_length=16, blank=True, default='')
+    tenant_custom_domain = models.CharField(max_length=255, blank=True, default='', db_index=True)
+    tenant_contact_email = models.EmailField(blank=True, default='')
+
     def get_absolute_url(self, request=None):
         return reverse('api:organization_detail', kwargs={'pk': self.pk}, request=request)
 

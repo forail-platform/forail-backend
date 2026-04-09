@@ -44,6 +44,7 @@ All models are in `forge/main/models/`. Each file covers one domain area:
 | `policy.py` | Policy, PolicyDecision | Policy-as-Code (OPA) — Rego rules evaluated before every launch (see `docs/19-policy-as-code.md`) |
 | `scanner.py` | Scanner, ScanResult, ScanFinding | IaC scanning & supply chain security — ansible-lint / checkov / pip-audit run before every launch (see `docs/20-iac-scanning.md`). Companion package: `forge/main/scanning/` (runner + tool adapters). |
 | `observability/` | (package, no ORM models) | OpenTelemetry bootstrap + helpers + tracing seams + metric handles + collector health probe. Initialized from `forge/asgi.py` / `forge/wsgi.py` / Celery boot. See `docs/21-observability.md`. |
+| `tenancy.py` | TenantUsage, TenantQuotaEvent, TenantIsolationEvent | Multi-tenancy v1 — per-tenant quotas, branding, and cross-tenant audit layered on top of Organization. Companion package: `forge/main/tenancy/` (pure helpers, quota gate, provisioning, branding lookup, usage reconciliation, isolation middleware). Quota gate runs **before** Policy-as-Code and IaC Scanning at job launch. See `docs/22-multi-tenancy.md`. |
 | `rbac.py` | Role | RBAC system — roles and permissions |
 | `oauth.py` | OAuth2Application, Token | API tokens |
 | `execution_environments.py` | ExecutionEnvironment | Container image reference for execution |

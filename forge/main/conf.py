@@ -1150,3 +1150,48 @@ register(
     category=_('System'),
     category_slug='system',
 )
+
+
+# ============================================================================
+# Multi-Tenancy v1
+# ============================================================================
+
+register(
+    'TENANCY_ENABLED',
+    field_class=fields.BooleanField,
+    default=False,
+    label=_('Multi-Tenancy Enabled'),
+    help_text=_('Enable per-organization quotas, branding, and isolation auditing.'),
+    category=_('System'),
+    category_slug='system',
+)
+
+register(
+    'TENANCY_DEFAULT_MAX_CONCURRENT_JOBS',
+    field_class=fields.IntegerField,
+    default=0,
+    label=_('Default Max Concurrent Jobs'),
+    help_text=_('Default tenant quota for concurrent jobs; 0 = unlimited.'),
+    category=_('System'),
+    category_slug='system',
+)
+
+register(
+    'TENANCY_DEFAULT_MAX_DAILY_LAUNCHES',
+    field_class=fields.IntegerField,
+    default=0,
+    label=_('Default Max Daily Launches'),
+    help_text=_('Default tenant quota for daily launches; 0 = unlimited.'),
+    category=_('System'),
+    category_slug='system',
+)
+
+register(
+    'TENANCY_QUOTA_RECALC_INTERVAL_S',
+    field_class=fields.IntegerField,
+    default=300,
+    label=_('Tenant Usage Recalc Interval'),
+    help_text=_('Celery beat cadence (seconds) for recomputing tenant usage counters.'),
+    category=_('System'),
+    category_slug='system',
+)

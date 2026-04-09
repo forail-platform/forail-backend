@@ -96,6 +96,23 @@ Role ──M:N──► User
 | `main_scanresult` | One row per scanner execution at launch time. Columns: `id`, `scanner_id` (SET_NULL), `scanner_name`, `unified_job_id` (SET_NULL), `unified_job_template_id` (SET_NULL), `organization_id`, `triggered_by_id`, `status` (`ok`/`warn`/`blocked`/`error`/`timeout`), `duration_ms`, `finding_count`, `highest_severity`, `message`, `raw_output`, `created`, `modified`. | Medium-fast |
 | `main_scanfinding` | One row per finding at or above threshold. Columns: `id`, `scan_result_id` (CASCADE), `rule_id`, `severity`, `file_path`, `line`, `message`, `created`, `modified`. | Fast (bursts on noisy scans) |
 
+### Multi-Tenancy (Tier 3.2)
+
+The existing `main_organization` table gains 11 additive columns (all nullable
+or with safe defaults, zero-downtime migration): `is_tenant_root`,
+`tenant_max_concurrent_jobs`, `tenant_max_daily_launches`, `tenant_max_hosts`,
+`tenant_max_storage_mb`, `tenant_isolation_strict`, `tenant_logo_url`,
+`tenant_primary_color`, `tenant_secondary_color`, `tenant_custom_domain`
+(indexed), `tenant_contact_email`.
+
+| Table | Description | Growth rate |
+|-------|-------------|-------------|
+| `main_tenantusage` | One row per tenant Organization. Columns: `id`, `organization_id` (OneToOne), `concurrent_jobs_count`, `launches_today_count`, `launches_today_window_start`, `hosts_count`, `storage_mb_used`, `last_recalculated_at`, `created`, `modified`. Updated by the launch hook + Celery beat reconciliation task. | Slow (bounded by tenant count) |
+| `main_tenantquotaevent` | One row per quota decision (allow or block) at job launch. Columns: `id`, `organization_id` (SET_NULL), `organization_name` (cached so the row survives org delete), `quota_kind` (`concurrent_jobs`/`daily_launches`/`hosts`/`storage_mb`), `decision` (`allowed`/`blocked`), `current_value`, `limit_value`, `triggered_by_id`, `unified_job_template_id`, `message`, `created`, `modified`. | Medium |
+| `main_tenantisolationevent` | One row per cross-tenant read observed when `tenant_isolation_strict=True` (v1 audit only). Columns: `id`, `user_id`, `user_organization_id`, `accessed_organization_id`, `resource_type`, `resource_id`, `request_path`, `blocked` (always `False` in v1), `created`, `modified`. | Medium-fast when strict mode is on |
+
+See `docs/22-multi-tenancy.md`.
+
 ### Execution (GROW FAST — cleanup required)
 
 | Table | Description | Growth rate |
