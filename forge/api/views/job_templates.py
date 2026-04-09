@@ -151,6 +151,21 @@ class JobTemplateLaunch(RetrieveAPIView):
                                         '; '.join(policy_result.warn_messages))[:1024]
             new_job.save(update_fields=['job_explanation'])
 
+        # IaC Scanning gate (no-op when SCANNER_ENABLED is False)
+        from forge.main.scanning.runner import run_scanners_for_launch
+        scan_result = run_scanners_for_launch(new_job, request)
+        if not scan_result.allowed:
+            new_job.delete()
+            return Response(
+                {'detail': 'Scanner blocked launch.', 'reasons': scan_result.block_messages},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if scan_result.warn_messages:
+            existing = new_job.job_explanation or ''
+            new_job.job_explanation = (existing + '\nScan warnings: ' +
+                                        '; '.join(scan_result.warn_messages))[:1024]
+            new_job.save(update_fields=['job_explanation'])
+
         result = new_job.signal_start(**passwords)
 
         if not result:

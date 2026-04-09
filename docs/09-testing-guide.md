@@ -10,7 +10,7 @@ How to run tests, what to test, and where tests live.
 |-------|------|-------|----------|
 | Python unit | pytest | 1083 | `forge/main/tests/unit/` |
 | Python functional (API) | pytest | 989 | `forge/main/tests/functional/` |
-| Standalone (EDA, drift, service catalog, webauthn, policy, audit) | unittest | 134+ | `tests_standalone/` |
+| Standalone (EDA, drift, service catalog, webauthn, policy, scanner, audit) | unittest | 154+ | `tests_standalone/` |
 | Frontend | vitest | 72+ | `forge/ui_next/src/**/*.test.{ts,tsx}` |
 | Python lint | flake8 | — | `forge/` |
 | Frontend lint | TypeScript | — | `forge/ui_next/src/` |
@@ -32,6 +32,10 @@ python -m unittest tests_standalone.test_webauthn -v
 
 # Run Policy-as-Code (OPA) tests (enforcement matrix, fail-mode, parse_decision)
 python -m unittest tests_standalone.test_policy -v
+
+# Run IaC scanner tests (severity ordering, enforcement, aggregate_status,
+# fail_mode_decision, ansible-lint / checkov / pip-audit adapter parsers)
+python -m unittest tests_standalone.test_scanner -v
 
 # Run all standalone tests
 python -m unittest discover tests_standalone -v

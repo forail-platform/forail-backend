@@ -86,6 +86,21 @@ class AdHocCommandList(ListCreateAPIView):
                                                '; '.join(policy_result.warn_messages))[:1024]
             ad_hoc_command.save(update_fields=['job_explanation'])
 
+        # IaC Scanning gate (no-op when SCANNER_ENABLED is False)
+        from forge.main.scanning.runner import run_scanners_for_launch
+        scan_result = run_scanners_for_launch(ad_hoc_command, request)
+        if not scan_result.allowed:
+            ad_hoc_command.delete()
+            return Response(
+                {'detail': 'Scanner blocked launch.', 'reasons': scan_result.block_messages},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if scan_result.warn_messages:
+            existing = ad_hoc_command.job_explanation or ''
+            ad_hoc_command.job_explanation = (existing + '\nScan warnings: ' +
+                                               '; '.join(scan_result.warn_messages))[:1024]
+            ad_hoc_command.save(update_fields=['job_explanation'])
+
         result = ad_hoc_command.signal_start(**request.data)
         if not result:
             data = dict(passwords_needed_to_start=ad_hoc_command.passwords_needed_to_start)

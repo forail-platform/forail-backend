@@ -1027,3 +1027,53 @@ register(
     category=_('Security'),
     category_slug='security',
 )
+
+
+# ============================================================================
+# IaC Scanning & Supply Chain Security
+# ============================================================================
+
+register(
+    'SCANNER_ENABLED',
+    field_class=fields.BooleanField,
+    default=False,
+    label=_('Enable IaC Scanning'),
+    help_text=_('Master switch. When off, no scanners run and launches proceed normally.'),
+    category=_('Security'),
+    category_slug='security',
+)
+
+register(
+    'SCANNER_TIMEOUT_S',
+    field_class=fields.IntegerField,
+    min_value=1,
+    max_value=3600,
+    default=120,
+    label=_('Scanner Timeout (seconds)'),
+    help_text=_('How long to wait for a scanner subprocess before giving up.'),
+    category=_('Security'),
+    category_slug='security',
+)
+
+register(
+    'SCANNER_FAIL_MODE',
+    field_class=fields.ChoiceField,
+    choices=[('allow', _('Allow (fail-open)')), ('deny', _('Deny (fail-closed)'))],
+    default='allow',
+    label=_('Scanner Fail Mode'),
+    help_text=_('What to do when a scanner subprocess crashes or times out.'),
+    category=_('Security'),
+    category_slug='security',
+)
+
+register(
+    'SCANNER_RAW_OUTPUT_MAX',
+    field_class=fields.IntegerField,
+    min_value=0,
+    max_value=1048576,
+    default=8192,
+    label=_('Scanner Raw Output Max Bytes'),
+    help_text=_('Maximum bytes of scanner stdout to persist in each ScanResult row.'),
+    category=_('Security'),
+    category_slug='security',
+)

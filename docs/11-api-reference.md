@@ -355,6 +355,25 @@ GET    /api/v2/policy_decisions/{id}/                 # Decision detail (full co
 See `docs/19-policy-as-code.md` for the architecture, the OPA wire
 format, and the launch hook diagram.
 
+### IaC Scanning & Supply Chain Security
+
+```bash
+GET    /api/v2/scanners/                              # List (filter: enabled, tool, applies_to, organization, search)
+POST   /api/v2/scanners/                              # Create (admin)
+GET    /api/v2/scanners/{id}/                         # Detail
+PATCH  /api/v2/scanners/{id}/                         # Update
+DELETE /api/v2/scanners/{id}/                         # Delete
+POST   /api/v2/scanners/{id}/enable/                  # Enable
+POST   /api/v2/scanners/{id}/disable/                 # Disable
+
+GET    /api/v2/scan_results/                          # Audit log (filter: scanner, status, unified_job, since)
+GET    /api/v2/scan_results/{id}/                     # Result detail with embedded findings
+```
+
+See `docs/20-iac-scanning.md` for the architecture, tool adapters
+(ansible-lint / checkov / pip-audit), severity threshold model, and
+the launch hook diagram.
+
 ### Drift Alert Rule — Create Example
 
 ```bash

@@ -88,6 +88,14 @@ Role ──M:N──► User
 | `main_policy` | Stored Rego policies pushed to OPA on save | Slow |
 | `main_policydecision` | One row per evaluation hit (warn or deny) | Medium-fast |
 
+### IaC Scanning & Supply Chain Security
+
+| Table | Description | Growth rate |
+|-------|-------------|-------------|
+| `main_scanner` | Configured scanner rows (ansible-lint / checkov / pip-audit) with severity threshold + enforcement. Columns: `id`, `name`, `description`, `organization_id`, `tool`, `config` (jsonb), `severity_threshold`, `enforcement`, `enabled`, `applies_to` (jsonb), `trigger_count`, `last_run_at`, `last_run_status`, `created`, `modified`, `created_by_id`, `modified_by_id`. | Slow |
+| `main_scanresult` | One row per scanner execution at launch time. Columns: `id`, `scanner_id` (SET_NULL), `scanner_name`, `unified_job_id` (SET_NULL), `unified_job_template_id` (SET_NULL), `organization_id`, `triggered_by_id`, `status` (`ok`/`warn`/`blocked`/`error`/`timeout`), `duration_ms`, `finding_count`, `highest_severity`, `message`, `raw_output`, `created`, `modified`. | Medium-fast |
+| `main_scanfinding` | One row per finding at or above threshold. Columns: `id`, `scan_result_id` (CASCADE), `rule_id`, `severity`, `file_path`, `line`, `message`, `created`, `modified`. | Fast (bursts on noisy scans) |
+
 ### Execution (GROW FAST — cleanup required)
 
 | Table | Description | Growth rate |

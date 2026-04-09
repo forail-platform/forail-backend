@@ -132,6 +132,13 @@ RUN rm -rf /root/.cache && rm -rf /tmp/*
 # Copy app from builder
 COPY --from=builder /var/lib/awx /var/lib/awx
 
+# IaC scanning & supply chain security CLIs (Tier 3.4)
+# Installed into the forge venv so Django subprocess calls find them on PATH.
+RUN /var/lib/awx/venv/awx/bin/pip install --no-cache-dir \
+        'ansible-lint==25.1.*' \
+        'checkov==3.2.*' \
+        'pip-audit==2.7.*'
+
 # Remove devonly module so forge detects production mode
 RUN rm -f /var/lib/awx/venv/awx/lib/python3.12/site-packages/forge/devonly.py \
           /var/lib/awx/venv/awx/lib/python3.12/site-packages/forge/devonly.pyc

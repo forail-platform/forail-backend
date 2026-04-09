@@ -42,6 +42,7 @@ All models are in `forge/main/models/`. Each file covers one domain area:
 | `service_catalog.py` | ServiceCatalogItem, ServiceRequest | Self-Service Portal — curated catalog wrapping JT/WFJT, request lifecycle with optional approval (see `docs/17-self-service-portal.md`) |
 | `webauthn.py` | WebAuthnCredential, WebAuthnRegistrationChallenge, WebAuthnAuthenticationChallenge | FIDO2 / WebAuthn — passwordless and second-factor authentication (see `docs/18-oidc-webauthn.md`) |
 | `policy.py` | Policy, PolicyDecision | Policy-as-Code (OPA) — Rego rules evaluated before every launch (see `docs/19-policy-as-code.md`) |
+| `scanner.py` | Scanner, ScanResult, ScanFinding | IaC scanning & supply chain security — ansible-lint / checkov / pip-audit run before every launch (see `docs/20-iac-scanning.md`). Companion package: `forge/main/scanning/` (runner + tool adapters). |
 | `rbac.py` | Role | RBAC system — roles and permissions |
 | `oauth.py` | OAuth2Application, Token | API tokens |
 | `execution_environments.py` | ExecutionEnvironment | Container image reference for execution |
