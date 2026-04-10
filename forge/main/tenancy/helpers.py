@@ -151,6 +151,62 @@ def make_isolation_decision(user_org_strict, global_strict_enabled, is_cross_ten
 
 
 # ---------------------------------------------------------------------------
+# Per-tenant API Rate Limiting — v2
+# ---------------------------------------------------------------------------
+
+# Lua token-bucket script for Redis.
+# KEYS[1] = bucket key, ARGV[1] = max_tokens (burst), ARGV[2] = refill_rate
+# (tokens/sec), ARGV[3] = now (epoch float), ARGV[4] = requested (always 1).
+# Returns {allowed (0/1), tokens_remaining}.
+TOKEN_BUCKET_LUA = """
+local key = KEYS[1]
+local max_tokens = tonumber(ARGV[1])
+local refill_rate = tonumber(ARGV[2])
+local now = tonumber(ARGV[3])
+local requested = tonumber(ARGV[4])
+
+local bucket = redis.call('HMGET', key, 'tokens', 'last_refill')
+local tokens = tonumber(bucket[1])
+local last_refill = tonumber(bucket[2])
+
+if tokens == nil then
+    tokens = max_tokens
+    last_refill = now
+end
+
+local elapsed = math.max(0, now - last_refill)
+tokens = math.min(max_tokens, tokens + elapsed * refill_rate)
+last_refill = now
+
+local allowed = 0
+if tokens >= requested then
+    tokens = tokens - requested
+    allowed = 1
+end
+
+redis.call('HMSET', key, 'tokens', tostring(tokens), 'last_refill', tostring(last_refill))
+redis.call('EXPIRE', key, math.ceil(max_tokens / refill_rate) + 10)
+
+return {allowed, math.floor(tokens)}
+"""
+
+
+def compute_token_bucket_params(rate_limit, burst_multiplier=2):
+    """Return ``(max_tokens, refill_rate)`` for a given requests/sec limit.
+
+    ``max_tokens`` is ``rate_limit * burst_multiplier`` to allow short bursts.
+    ``refill_rate`` equals the rate_limit (tokens per second).
+    Returns ``(0, 0)`` if rate_limit is None/0 (unlimited).
+    """
+    if not rate_limit:
+        return (0, 0)
+    rate = int(rate_limit)
+    if rate <= 0:
+        return (0, 0)
+    return (rate * int(burst_multiplier), rate)
+
+
+# ---------------------------------------------------------------------------
 # Row-Level Security (RLS) — v2
 # ---------------------------------------------------------------------------
 

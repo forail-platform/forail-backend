@@ -394,5 +394,65 @@ class TestIsolationExemptPrefixes(unittest.TestCase):
             self.assertTrue(prefix.startswith('/'), f'{prefix} should start with /')
 
 
+# ---------------------------------------------------------------------------
+# Multi-Tenancy v2: Rate Limiting helper tests
+# ---------------------------------------------------------------------------
+
+compute_token_bucket_params = helpers.compute_token_bucket_params
+TOKEN_BUCKET_LUA = helpers.TOKEN_BUCKET_LUA
+
+
+class TestComputeTokenBucketParams(unittest.TestCase):
+    """Test token bucket parameter computation."""
+
+    def test_none_returns_zeros(self):
+        self.assertEqual(compute_token_bucket_params(None), (0, 0))
+
+    def test_zero_returns_zeros(self):
+        self.assertEqual(compute_token_bucket_params(0), (0, 0))
+
+    def test_negative_returns_zeros(self):
+        self.assertEqual(compute_token_bucket_params(-5), (0, 0))
+
+    def test_positive_rate(self):
+        max_tokens, refill_rate = compute_token_bucket_params(100)
+        self.assertEqual(refill_rate, 100)
+        self.assertEqual(max_tokens, 200)  # burst_multiplier=2
+
+    def test_custom_burst_multiplier(self):
+        max_tokens, refill_rate = compute_token_bucket_params(50, burst_multiplier=3)
+        self.assertEqual(refill_rate, 50)
+        self.assertEqual(max_tokens, 150)
+
+    def test_one_req_per_sec(self):
+        max_tokens, refill_rate = compute_token_bucket_params(1)
+        self.assertEqual(refill_rate, 1)
+        self.assertEqual(max_tokens, 2)
+
+
+class TestTokenBucketLua(unittest.TestCase):
+    """Validate structure of the Lua script."""
+
+    def test_is_non_empty_string(self):
+        self.assertIsInstance(TOKEN_BUCKET_LUA, str)
+        self.assertGreater(len(TOKEN_BUCKET_LUA), 100)
+
+    def test_uses_keys_and_argv(self):
+        self.assertIn('KEYS[1]', TOKEN_BUCKET_LUA)
+        self.assertIn('ARGV[1]', TOKEN_BUCKET_LUA)
+        self.assertIn('ARGV[2]', TOKEN_BUCKET_LUA)
+        self.assertIn('ARGV[3]', TOKEN_BUCKET_LUA)
+
+    def test_returns_allowed_flag(self):
+        self.assertIn('allowed', TOKEN_BUCKET_LUA)
+
+    def test_uses_hmget_hmset(self):
+        self.assertIn('HMGET', TOKEN_BUCKET_LUA)
+        self.assertIn('HMSET', TOKEN_BUCKET_LUA)
+
+    def test_sets_expire(self):
+        self.assertIn('EXPIRE', TOKEN_BUCKET_LUA)
+
+
 if __name__ == '__main__':
     unittest.main()

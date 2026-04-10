@@ -1227,3 +1227,29 @@ register(
     category=_('System'),
     category_slug='system',
 )
+
+register(
+    'TENANCY_RATE_LIMITING_ENABLED',
+    field_class=fields.BooleanField,
+    default=False,
+    label=_('Per-tenant API Rate Limiting Enabled'),
+    help_text=_(
+        'Enable token-bucket rate limiting per tenant. '
+        'Requires Redis and TENANCY_ENABLED=True.'
+    ),
+    category=_('System'),
+    category_slug='system',
+)
+
+register(
+    'TENANCY_DEFAULT_API_RATE_LIMIT',
+    field_class=fields.IntegerField,
+    default=0,
+    label=_('Default API Rate Limit (req/s)'),
+    help_text=_(
+        'Default per-tenant API rate limit in requests per second. '
+        '0 = unlimited. Per-tenant overrides take precedence.'
+    ),
+    category=_('System'),
+    category_slug='system',
+)

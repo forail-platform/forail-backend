@@ -16,6 +16,7 @@ class TenantQuotaSerializer(serializers.Serializer):
     max_daily_launches = serializers.IntegerField(required=False, allow_null=True, min_value=0)
     max_hosts = serializers.IntegerField(required=False, allow_null=True, min_value=0)
     max_storage_mb = serializers.IntegerField(required=False, allow_null=True, min_value=0)
+    api_rate_limit = serializers.IntegerField(required=False, allow_null=True, min_value=0)
 
 
 class TenantBrandingSerializer(serializers.Serializer):
@@ -80,6 +81,7 @@ class TenantSerializer(serializers.ModelSerializer):
             'max_daily_launches': obj.tenant_max_daily_launches,
             'max_hosts': obj.tenant_max_hosts,
             'max_storage_mb': obj.tenant_max_storage_mb,
+            'api_rate_limit': obj.tenant_api_rate_limit,
         }
 
     def get_usage(self, obj):
@@ -127,6 +129,8 @@ class TenantSerializer(serializers.ModelSerializer):
                 instance.tenant_max_hosts = quota['max_hosts'] or None
             if 'max_storage_mb' in quota:
                 instance.tenant_max_storage_mb = quota['max_storage_mb'] or None
+            if 'api_rate_limit' in quota:
+                instance.tenant_api_rate_limit = quota['api_rate_limit'] or None
 
         branding = data.get('branding') if isinstance(data, dict) else None
         if isinstance(branding, dict):

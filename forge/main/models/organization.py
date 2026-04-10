@@ -146,6 +146,12 @@ class Organization(CommonModel, NotificationFieldsModel, ResourceMixin, CustomVi
     tenant_custom_domain = models.CharField(max_length=255, blank=True, default='', db_index=True)
     tenant_contact_email = models.EmailField(blank=True, default='')
 
+    # --- Multi-Tenancy v2 fields ---------------------------------------------
+    tenant_api_rate_limit = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text=_('Max API requests per second for this tenant. NULL or 0 = unlimited.'),
+    )
+
     def get_absolute_url(self, request=None):
         return reverse('api:organization_detail', kwargs={'pk': self.pk}, request=request)
 

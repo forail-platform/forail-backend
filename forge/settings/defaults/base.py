@@ -271,6 +271,8 @@ MIDDLEWARE = [
     'forge.main.middleware.WebAuthnMfaEnforcementMiddleware',
     # Multi-Tenancy v2: sets Postgres forge.current_tenant_id for RLS
     'forge.main.tenancy.isolation.TenantIsolationMiddleware',
+    # Multi-Tenancy v2: per-tenant API rate limiting (token bucket / Redis)
+    'forge.main.tenancy.rate_limit.TenantRateLimitMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     # URL routing based on optional prefix
     'forge.main.middleware.OptionalURLPrefixPath',
