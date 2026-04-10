@@ -1195,3 +1195,35 @@ register(
     category=_('System'),
     category_slug='system',
 )
+
+# --- Multi-Tenancy v2 settings -----------------------------------------------
+
+register(
+    'TENANCY_RLS_ENABLED',
+    field_class=fields.BooleanField,
+    default=False,
+    label=_('Row-Level Security Enabled'),
+    help_text=_(
+        'Enable Postgres Row-Level Security for tenant isolation. '
+        'When True, the middleware sets forge.current_tenant_id per request '
+        'and RLS policies restrict row visibility to the tenant\'s organization. '
+        'Requires TENANCY_ENABLED=True.'
+    ),
+    category=_('System'),
+    category_slug='system',
+)
+
+register(
+    'TENANCY_STRICT_ISOLATION_ENABLED',
+    field_class=fields.BooleanField,
+    default=False,
+    label=_('Strict Tenant Isolation Enabled'),
+    help_text=_(
+        'When True and an organization has tenant_isolation_strict=True, '
+        'cross-tenant API access is blocked (HTTP 403) and a '
+        'TenantIsolationEvent is emitted. When False, cross-tenant access '
+        'is only audited. Requires TENANCY_ENABLED=True.'
+    ),
+    category=_('System'),
+    category_slug='system',
+)

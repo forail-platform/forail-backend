@@ -269,6 +269,8 @@ MIDDLEWARE = [
     'forge.main.middleware.DisableLocalAuthMiddleware',
     # Enforces org-level WebAuthn MFA after primary auth
     'forge.main.middleware.WebAuthnMfaEnforcementMiddleware',
+    # Multi-Tenancy v2: sets Postgres forge.current_tenant_id for RLS
+    'forge.main.tenancy.isolation.TenantIsolationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     # URL routing based on optional prefix
     'forge.main.middleware.OptionalURLPrefixPath',

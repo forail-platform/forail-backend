@@ -17,10 +17,11 @@ from forge.api.serializers.tenancy import (
     TenantProvisionSerializer,
     TenantUsageSerializer,
     TenantQuotaEventSerializer,
+    TenantIsolationEventSerializer,
     BrandingPublicSerializer,
 )
 from forge.main.models import Organization
-from forge.main.models.tenancy import TenantQuotaEvent
+from forge.main.models.tenancy import TenantQuotaEvent, TenantIsolationEvent
 from forge.main.tenancy.branding import get_branding_for_host
 
 logger = logging.getLogger('forge.api.views.tenancy')
@@ -116,6 +117,30 @@ class TenantQuotaEventList(ListAPIView):
             qs = qs.filter(quota_kind=p['quota_kind'])
         if p.get('decision'):
             qs = qs.filter(decision=p['decision'])
+        if p.get('since'):
+            qs = qs.filter(created__gte=p['since'])
+        return qs
+
+
+class TenantIsolationEventList(ListAPIView):
+    """GET /api/v2/tenant_isolation_events/ — filterable isolation audit log."""
+
+    model = TenantIsolationEvent
+    serializer_class = TenantIsolationEventSerializer
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    ordering = ('-created',)
+
+    def get_queryset(self):
+        qs = TenantIsolationEvent.objects.all()
+        p = self.request.query_params
+        if p.get('user'):
+            qs = qs.filter(user_id=p['user'])
+        if p.get('user_organization'):
+            qs = qs.filter(user_organization_id=p['user_organization'])
+        if p.get('accessed_organization'):
+            qs = qs.filter(accessed_organization_id=p['accessed_organization'])
+        if p.get('blocked'):
+            qs = qs.filter(blocked=p['blocked'].lower() in ('1', 'true', 'yes'))
         if p.get('since'):
             qs = qs.filter(created__gte=p['since'])
         return qs

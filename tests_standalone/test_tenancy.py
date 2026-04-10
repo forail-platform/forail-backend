@@ -189,5 +189,210 @@ class TestValidateProvisioningPayload(unittest.TestCase):
         self.assertTrue(validate_provisioning_payload('nope'))
 
 
+# ---------------------------------------------------------------------------
+# Multi-Tenancy v2: RLS helper tests
+# ---------------------------------------------------------------------------
+
+build_rls_policy_sql = helpers.build_rls_policy_sql
+build_rls_policy_sql_indirect = helpers.build_rls_policy_sql_indirect
+RLS_TABLES_DIRECT = helpers.RLS_TABLES_DIRECT
+RLS_TABLES_INDIRECT = helpers.RLS_TABLES_INDIRECT
+
+
+class TestBuildRlsPolicySql(unittest.TestCase):
+    """Test SQL generation for direct RLS policies."""
+
+    def test_returns_tuple(self):
+        create, drop = build_rls_policy_sql('main_inventory', 'organization_id')
+        self.assertIsInstance(create, str)
+        self.assertIsInstance(drop, str)
+
+    def test_create_contains_policy_name(self):
+        create, _ = build_rls_policy_sql('main_inventory', 'organization_id')
+        self.assertIn('tenant_isolation_main_inventory', create)
+
+    def test_create_contains_org_column(self):
+        create, _ = build_rls_policy_sql('main_inventory', 'organization_id')
+        self.assertIn('organization_id = current_setting', create)
+
+    def test_create_contains_bypass_clauses(self):
+        create, _ = build_rls_policy_sql('main_inventory', 'organization_id')
+        # Bypass when session var is NULL
+        self.assertIn("IS NULL", create)
+        # Bypass when session var is empty string
+        self.assertIn("= ''", create)
+        # Bypass when org column is NULL (shared resources)
+        self.assertIn('organization_id IS NULL', create)
+
+    def test_create_is_permissive(self):
+        create, _ = build_rls_policy_sql('main_inventory', 'organization_id')
+        self.assertIn('AS PERMISSIVE', create)
+
+    def test_drop_contains_policy_name(self):
+        _, drop = build_rls_policy_sql('main_inventory', 'organization_id')
+        self.assertIn('DROP POLICY IF EXISTS tenant_isolation_main_inventory', drop)
+
+    def test_different_tables_produce_different_policies(self):
+        c1, _ = build_rls_policy_sql('main_inventory', 'organization_id')
+        c2, _ = build_rls_policy_sql('main_credential', 'organization_id')
+        self.assertIn('main_inventory', c1)
+        self.assertIn('main_credential', c2)
+        self.assertNotEqual(c1, c2)
+
+
+class TestBuildRlsPolicySqlIndirect(unittest.TestCase):
+    """Test SQL generation for indirect (subquery-based) RLS policies."""
+
+    def test_returns_tuple(self):
+        create, drop = build_rls_policy_sql_indirect(
+            'main_host', 'inventory_id', 'main_inventory', 'organization_id'
+        )
+        self.assertIsInstance(create, str)
+        self.assertIsInstance(drop, str)
+
+    def test_create_contains_subquery(self):
+        create, _ = build_rls_policy_sql_indirect(
+            'main_host', 'inventory_id', 'main_inventory', 'organization_id'
+        )
+        self.assertIn('SELECT id FROM main_inventory', create)
+        self.assertIn('inventory_id IN', create)
+
+    def test_create_contains_bypass(self):
+        create, _ = build_rls_policy_sql_indirect(
+            'main_host', 'inventory_id', 'main_inventory', 'organization_id'
+        )
+        self.assertIn("IS NULL", create)
+        self.assertIn("= ''", create)
+
+    def test_drop_contains_policy_name(self):
+        _, drop = build_rls_policy_sql_indirect(
+            'main_host', 'inventory_id', 'main_inventory', 'organization_id'
+        )
+        self.assertIn('DROP POLICY IF EXISTS tenant_isolation_main_host', drop)
+
+
+class TestRlsTablesConstant(unittest.TestCase):
+    """Validate the RLS_TABLES_DIRECT and RLS_TABLES_INDIRECT constants."""
+
+    def test_direct_tables_not_empty(self):
+        self.assertGreater(len(RLS_TABLES_DIRECT), 10)
+
+    def test_indirect_tables_not_empty(self):
+        self.assertGreater(len(RLS_TABLES_INDIRECT), 0)
+
+    def test_direct_entries_are_tuples(self):
+        for entry in RLS_TABLES_DIRECT:
+            self.assertEqual(len(entry), 2, f'Bad entry: {entry}')
+            table, col = entry
+            self.assertTrue(table.startswith('main_'), f'Unexpected table: {table}')
+            self.assertEqual(col, 'organization_id', f'Unexpected column: {col} for {table}')
+
+    def test_indirect_entries_are_tuples(self):
+        for entry in RLS_TABLES_INDIRECT:
+            self.assertEqual(len(entry), 4, f'Bad entry: {entry}')
+
+    def test_no_duplicate_tables(self):
+        direct_tables = [t for t, _ in RLS_TABLES_DIRECT]
+        indirect_tables = [t for t, _, _, _ in RLS_TABLES_INDIRECT]
+        all_tables = direct_tables + indirect_tables
+        self.assertEqual(len(all_tables), len(set(all_tables)), 'Duplicate table in RLS lists')
+
+    def test_core_tables_present(self):
+        direct_tables = {t for t, _ in RLS_TABLES_DIRECT}
+        for expected in ['main_inventory', 'main_credential', 'main_team',
+                         'main_unifiedjobtemplate', 'main_unifiedjob']:
+            self.assertIn(expected, direct_tables, f'{expected} missing from RLS_TABLES_DIRECT')
+
+    def test_host_is_indirect(self):
+        indirect_tables = {t for t, _, _, _ in RLS_TABLES_INDIRECT}
+        self.assertIn('main_host', indirect_tables)
+
+
+# ---------------------------------------------------------------------------
+# Multi-Tenancy v2: Strict Isolation helper tests
+# ---------------------------------------------------------------------------
+
+should_exempt_isolation = helpers.should_exempt_isolation
+make_isolation_decision = helpers.make_isolation_decision
+ISOLATION_EXEMPT_PATH_PREFIXES = helpers.ISOLATION_EXEMPT_PATH_PREFIXES
+
+
+class TestShouldExemptIsolation(unittest.TestCase):
+    """Test path exemption checks for strict isolation."""
+
+    def test_none_path(self):
+        self.assertTrue(should_exempt_isolation(None))
+
+    def test_empty_path(self):
+        self.assertTrue(should_exempt_isolation(''))
+
+    def test_branding_exempt(self):
+        self.assertTrue(should_exempt_isolation('/api/v2/branding/'))
+
+    def test_config_exempt(self):
+        self.assertTrue(should_exempt_isolation('/api/v2/config/'))
+
+    def test_tenants_exempt(self):
+        self.assertTrue(should_exempt_isolation('/api/v2/tenants/'))
+
+    def test_login_exempt(self):
+        self.assertTrue(should_exempt_isolation('/api/login/'))
+
+    def test_sso_exempt(self):
+        self.assertTrue(should_exempt_isolation('/sso/login/'))
+
+    def test_isolation_events_exempt(self):
+        self.assertTrue(should_exempt_isolation('/api/v2/tenant_isolation_events/'))
+
+    def test_inventories_not_exempt(self):
+        self.assertFalse(should_exempt_isolation('/api/v2/inventories/'))
+
+    def test_hosts_not_exempt(self):
+        self.assertFalse(should_exempt_isolation('/api/v2/hosts/5/'))
+
+    def test_job_templates_not_exempt(self):
+        self.assertFalse(should_exempt_isolation('/api/v2/job_templates/'))
+
+
+class TestMakeIsolationDecision(unittest.TestCase):
+    """Test isolation decision logic."""
+
+    def test_same_tenant_no_action(self):
+        block, audit = make_isolation_decision(True, True, is_cross_tenant=False)
+        self.assertFalse(block)
+        self.assertFalse(audit)
+
+    def test_cross_tenant_both_strict(self):
+        block, audit = make_isolation_decision(True, True, is_cross_tenant=True)
+        self.assertTrue(block)
+        self.assertTrue(audit)
+
+    def test_cross_tenant_org_strict_global_off(self):
+        block, audit = make_isolation_decision(True, False, is_cross_tenant=True)
+        self.assertFalse(block)
+        self.assertTrue(audit)
+
+    def test_cross_tenant_org_not_strict(self):
+        block, audit = make_isolation_decision(False, True, is_cross_tenant=True)
+        self.assertFalse(block)
+        self.assertTrue(audit)
+
+    def test_cross_tenant_neither_strict(self):
+        block, audit = make_isolation_decision(False, False, is_cross_tenant=True)
+        self.assertFalse(block)
+        self.assertTrue(audit)
+
+
+class TestIsolationExemptPrefixes(unittest.TestCase):
+    """Validate the ISOLATION_EXEMPT_PATH_PREFIXES constant."""
+
+    def test_not_empty(self):
+        self.assertGreater(len(ISOLATION_EXEMPT_PATH_PREFIXES), 5)
+
+    def test_all_start_with_slash(self):
+        for prefix in ISOLATION_EXEMPT_PATH_PREFIXES:
+            self.assertTrue(prefix.startswith('/'), f'{prefix} should start with /')
+
+
 if __name__ == '__main__':
     unittest.main()

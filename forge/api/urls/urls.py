@@ -95,7 +95,8 @@ from .webauthn import urls as webauthn_urls
 from .policy import policy_urls, policy_decision_urls
 from .scanner import scanner_urls, scan_result_urls
 from .observability import observability_urls
-from .tenancy import tenant_urls, tenant_quota_event_urls, branding_urls
+from .recommendations import urlpatterns as recommendations_urls
+from .tenancy import tenant_urls, tenant_quota_event_urls, tenant_isolation_event_urls, branding_urls
 
 v2_urls = [
     re_path(r'^$', ApiV2RootView.as_view(), name='api_v2_root_view'),
@@ -186,8 +187,10 @@ v2_urls = [
     re_path(r'^scanners/', include(scanner_urls)),
     re_path(r'^scan_results/', include(scan_result_urls)),
     re_path(r'^observability/', include(observability_urls)),
+    re_path(r'^recommendations/', include(recommendations_urls)),
     re_path(r'^tenants/', include(tenant_urls)),
     re_path(r'^tenant_quota_events/', include(tenant_quota_event_urls)),
+    re_path(r'^tenant_isolation_events/', include(tenant_isolation_event_urls)),
     re_path(r'^branding/', include(branding_urls)),
 ]
 
