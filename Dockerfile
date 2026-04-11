@@ -129,6 +129,35 @@ RUN mkdir -p /etc/pki/tls/certs && \
 
 RUN rm -rf /root/.cache && rm -rf /tmp/*
 
+# ── podman for Execution Environment process isolation ─────────────
+# AWX/forge runs project updates and job templates inside EE containers
+# via ansible-runner, which hardcodes process_isolation_executable=podman.
+# This installs podman and configures fuse-overlay storage so it works
+# when the forge-task container itself runs in privileged mode under
+# Docker. Pattern mirrored from tools/ansible/roles/dockerfile/templates/
+# Dockerfile.ubuntu.j2 (upstream AWX dev build).
+RUN apt-get update && apt-get install -y podman fuse-overlayfs uidmap && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+RUN STORAGE_CONF=$(find /usr/share/containers /etc/containers -name storage.conf 2>/dev/null | head -1) && \
+    if [ -n "$STORAGE_CONF" ] && [ ! -f /etc/containers/storage.conf ]; then \
+      cp "$STORAGE_CONF" /etc/containers/storage.conf; \
+    fi && \
+    if [ -f /etc/containers/storage.conf ]; then \
+      sed -i -e 's|^#mount_program|mount_program|g' \
+             -e '/additionalimage.*/a "/var/lib/shared",' \
+             -e 's|^mountopt[[:space:]]*=.*$|mountopt = "nodev,fsync=0"|g' \
+             /etc/containers/storage.conf; \
+    fi
+
+ENV _CONTAINERS_USERNS_CONFIGURED=""
+
+# Force fully qualified image names so podman does not hang on interactive
+# registry selection prompts when pulling unqualified images.
+RUN mkdir -p /etc/containers/registries.conf.d/ && \
+    echo "unqualified-search-registries = []" > /etc/containers/registries.conf.d/force-fully-qualified-images.conf && \
+    chmod 644 /etc/containers/registries.conf.d/force-fully-qualified-images.conf
+
 # Copy app from builder
 COPY --from=builder /var/lib/awx /var/lib/awx
 
