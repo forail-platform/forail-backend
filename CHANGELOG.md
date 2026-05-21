@@ -7,6 +7,18 @@ and the project adheres to CalVer (`YYYY.MM.PATCH`).
 
 ## [Unreleased]
 
+### Fixed
+- `DriftAlertRule` rows could not be cascade-deleted from an
+  Organization: the original `0198_drift_models` migration omitted
+  the `created_by` / `modified_by` FK columns inherited from
+  `PrimordialModel`, so any ORM query that joined the audit columns
+  blew up with `psycopg.UndefinedColumn`. Symptom in the wild was
+  `DELETE /api/v2/organizations/{id}/` returning HTTP 500 and the
+  forge-operator finalizer hanging. Migration `0208` backfills both
+  columns nullable + SET_NULL; a schema-level regression test in
+  `tests_standalone/test_drift_audit_fields_schema.py` keeps the
+  same gap from re-opening.
+
 ## [2026.04.0] - 2026-04-17
 
 ### Added
