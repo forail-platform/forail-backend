@@ -2,6 +2,12 @@
 
 Django REST API + Task Engine for the Forge platform.
 
+## Project History
+
+Forge is a modernized fork of [Ansible AWX](https://github.com/ansible/awx), originally developed by Red Hat and the Ansible community under the Apache License 2.0. The fork was created in 2024 to refresh the runtime (Python 3.12, Django 4.2, modern frontend stack), rebrand all `awx-*` references to `forge-*`, and extend the platform with new features (dynamic surveys, drift detection, IaC scanning, multi-tenancy, OIDC+WebAuthn, OpenTelemetry observability, declarative Kubernetes operator).
+
+Heritage attribution is preserved in [NOTICE](./NOTICE).
+
 ## Tech Stack
 
 - Python 3.12
@@ -77,10 +83,14 @@ See [docs/11-api-reference.md](docs/11-api-reference.md) for the complete refere
 ## Docker
 
 ```bash
-docker build -t registry.cloudforyour.work/forge-platform/forge-backend:latest .
+docker build -t ghcr.io/forgeplatform/forge-backend:latest .
 ```
 
 ## Related Repositories
 
-- [forge-frontend](https://git.cloudforyour.work/forge-platform/forge-frontend) — React UI
-- [forge-devops](https://git.cloudforyour.work/forge-platform/forge-devops) — Docker Compose, Nginx, CI/CD
+- [forge-frontend](https://github.com/forgeplatform/forge-frontend) — React UI
+- [forge-devops](https://github.com/forgeplatform/forge-devops) — Docker Compose, Nginx, CI/CD
+
+## License
+
+Licensed under the Apache License, Version 2.0. See [LICENSE](./LICENSE) and [NOTICE](./NOTICE).
