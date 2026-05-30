@@ -1,5 +1,7 @@
 # Forge Backend
 
+[![CI](https://github.com/forgeplatform/forge-backend/actions/workflows/ci.yml/badge.svg)](https://github.com/forgeplatform/forge-backend/actions/workflows/ci.yml)
+
 Django REST API + Task Engine for the Forge platform.
 
 ## Project History
