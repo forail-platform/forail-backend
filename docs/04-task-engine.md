@@ -71,7 +71,7 @@ Effective     = whichever is smaller
 - **Forks:** Each job uses as many forks as defined on the template
   (default 5). Reducing forks on the template allows more concurrent jobs.
 
-- **`list_instances`:** Use `forge-manage list_instances` to see capacity.
+- **`list_instances`:** Use `forail-manage list_instances` to see capacity.
   If `remaining` = 0, jobs are waiting.
 
 - **Instance Groups:** Organizations are mapped to instance groups. If an organization
@@ -138,7 +138,7 @@ The task container runs 4 processes through `supervisord`:
 ### Checking status
 
 ```bash
-docker compose exec forge-task supervisorctl status
+docker compose exec forail-task supervisorctl status
 # All 4 processes must be RUNNING
 ```
 
@@ -169,10 +169,10 @@ This guarantees reproducibility — the same playbook produces the same result r
 
 ```bash
 # 1. Is the dispatcher running?
-docker compose exec forge-task supervisorctl status dispatcher
+docker compose exec forail-task supervisorctl status dispatcher
 
 # 2. Is Redis running?
-docker compose exec forge-task redis-cli -h redis ping
+docker compose exec forail-task redis-cli -h redis ping
 
 # 3. How many tasks are waiting in the queue?
 docker compose exec redis redis-cli -n 0 LLEN celery
@@ -182,7 +182,7 @@ docker compose exec redis redis-cli -n 0 LLEN celery
 
 ```bash
 # Check node capacity
-docker compose exec forge-web forge-manage list_instances
+docker compose exec forail-web forail-manage list_instances
 # If remaining = 0, there's no free capacity
 ```
 
@@ -190,18 +190,18 @@ docker compose exec forge-web forge-manage list_instances
 
 ```bash
 # Check callback receiver
-docker compose exec forge-task supervisorctl status callback_receiver
-docker compose exec forge-task tail -f /var/log/supervisor/callback_receiver.log
+docker compose exec forail-task supervisorctl status callback_receiver
+docker compose exec forail-task tail -f /var/log/supervisor/callback_receiver.log
 ```
 
 ### WebSocket not working (UI not updating)
 
 ```bash
 # Check wsrelay and daphne processes
-docker compose exec forge-task supervisorctl status wsrelay
-docker compose exec forge-web supervisorctl status daphne
+docker compose exec forail-task supervisorctl status wsrelay
+docker compose exec forail-web supervisorctl status daphne
 
-# Verify both containers have the same FORGE_BROADCAST_WEBSOCKET_SECRET
+# Verify both containers have the same FORAIL_BROADCAST_WEBSOCKET_SECRET
 ```
 
 ### Job finishes with "error" instead of "failed"
@@ -210,4 +210,4 @@ docker compose exec forge-web supervisorctl status daphne
 - Can Ansible Runner access the project (SCM sync)?
 - Does the EE image exist?
 - Does the Receptor socket exist (`/var/run/awx-receptor/receptor.sock`)?
-- Logs: `docker compose logs forge-task | grep ERROR`
+- Logs: `docker compose logs forail-task | grep ERROR`

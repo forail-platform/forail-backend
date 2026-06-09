@@ -10,7 +10,7 @@ pidfile = /var/run/supervisor/supervisor.task.pid
 command = make dispatcher
 directory = /awx_devel
 {% else %}
-command = forge-manage run_dispatcher
+command = forail-manage run_dispatcher
 directory = /var/lib/awx
 {% endif %}
 autorestart = true
@@ -27,7 +27,7 @@ stderr_logfile_maxbytes=0
 command = make run-wsrelay
 directory = /awx_devel
 {% else %}
-command = forge-manage run_wsrelay
+command = forail-manage run_wsrelay
 directory = /var/lib/awx
 {% endif %}
 autorestart = true
@@ -43,7 +43,7 @@ stderr_logfile_maxbytes=0
 command = make receiver
 directory = /awx_devel
 {% else %}
-command = forge-manage run_callback_receiver
+command = forail-manage run_callback_receiver
 directory = /var/lib/awx
 {% endif %}
 autorestart = true
@@ -56,8 +56,8 @@ stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
 
 {% if kube_dev | bool %}
-[program:forge-autoreload]
-command = /awx_devel/tools/docker-compose/awx-autoreload /awx_devel/forge
+[program:forail-autoreload]
+command = /awx_devel/tools/docker-compose/awx-autoreload /awx_devel/forail
 autostart = true
 autorestart = true
 stopasgroup=true

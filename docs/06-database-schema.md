@@ -1,6 +1,6 @@
 # 06 — Database Schema
 
-Forge uses PostgreSQL 15. This document covers key tables, relationships,
+Forail uses PostgreSQL 15. This document covers key tables, relationships,
 maintenance, and useful queries for diagnostics.
 
 ---
@@ -173,50 +173,50 @@ The endpoint `/api/v2/unified_jobs/` shows ALL job types in a single list.
 
 ```bash
 # Automated backup (uses the built-in script)
-docker compose exec forge-task bash /etc/forge/backup.sh
+docker compose exec forail-task bash /etc/forail/backup.sh
 
 # Manual backup
-docker compose exec postgres pg_dump -U forge forge | gzip > backup_$(date +%Y%m%d).sql.gz
+docker compose exec postgres pg_dump -U forail forail | gzip > backup_$(date +%Y%m%d).sql.gz
 ```
 
 ### Restore
 
 ```bash
 # Stop the application
-docker compose stop forge-web forge-task
+docker compose stop forail-web forail-task
 
 # Restore
-gunzip -c backup_20260310.sql.gz | docker compose exec -T postgres psql -U forge forge
+gunzip -c backup_20260310.sql.gz | docker compose exec -T postgres psql -U forail forail
 
 # Restart
-docker compose start forge-web forge-task
-docker compose exec forge-web forge-manage migrate  # if version differs
+docker compose start forail-web forail-task
+docker compose exec forail-web forail-manage migrate  # if version differs
 ```
 
 ### Cleanup (MANDATORY in production)
 
 ```bash
 # Delete jobs older than 90 days (and their events/partitions)
-forge-manage cleanup_jobs --days=90
+forail-manage cleanup_jobs --days=90
 
 # Delete activity stream older than one year
-forge-manage cleanup_activitystream --days=365
+forail-manage cleanup_activitystream --days=365
 
 # Delete expired sessions and tokens
-forge-manage cleanup_sessions
-forge-manage cleanup_tokens
+forail-manage cleanup_sessions
+forail-manage cleanup_tokens
 ```
 
-**Recommendation:** Set up a System Job in the Forge UI that runs `cleanup_jobs` daily.
+**Recommendation:** Set up a System Job in the Forail UI that runs `cleanup_jobs` daily.
 
 ### Vacuum
 
 ```bash
 # Reclaim dead tuples (run after large deletions)
-docker compose exec postgres vacuumdb -U forge -z forge
+docker compose exec postgres vacuumdb -U forail -z forail
 ```
 
-### PostgreSQL Tuning for Forge
+### PostgreSQL Tuning for Forail
 
 | Parameter | Recommendation | Why |
 |-----------|---------------|-----|
@@ -275,19 +275,19 @@ WHERE h.has_active_failures = true;
 
 ```bash
 # Interactive shell
-docker compose exec postgres psql -U forge forge
+docker compose exec postgres psql -U forail forail
 
 # Or through Django
-docker compose exec forge-web forge-manage dbshell
+docker compose exec forail-web forail-manage dbshell
 ```
 
 ---
 
 ## Migrations
 
-Forge has **252 migrations** in `forge/main/migrations/`.
+Forail has **252 migrations** in `forail/main/migrations/`.
 
-- All reference `forge.main.fields` (not `awx.main.fields`)
+- All reference `forail.main.fields` (not `awx.main.fields`)
 - The init script automatically runs `migrate` during deployment
 - Never edit existing migrations — only add new ones
-- Check status: `forge-manage showmigrations | grep "\[ \]"`
+- Check status: `forail-manage showmigrations | grep "\[ \]"`

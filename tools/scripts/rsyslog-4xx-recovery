@@ -1,4 +1,4 @@
-#!/usr/bin/forge-python
+#!/usr/bin/forail-python
 import sys
 import os
 import signal

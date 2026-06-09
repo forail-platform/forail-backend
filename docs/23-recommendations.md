@@ -2,7 +2,7 @@
 
 **Tier 3.7 — NEW**
 
-Forge Platform ships a **rule-based recommendations engine** that surfaces
+Forail Platform ships a **rule-based recommendations engine** that surfaces
 actionable, scope-aware hints about platform health. Recommendations appear on
 the Dashboard and inside each wizard, and are designed to nudge operators
 toward best practices ("you have job templates but no IaC scanners",
@@ -43,13 +43,13 @@ existing tables, with a 60-second in-memory cache to keep the cost negligible.
 ## Module Layout
 
 ```
-forge/main/recommendations/
+forail/main/recommendations/
 ├── __init__.py        # public exports: build_context, evaluate, Recommendation
 ├── types.py           # @dataclass RuleContext, Recommendation
 ├── rules.py           # 12 pure rule functions
 └── engine.py          # build_context() + evaluate() + 60s cache
 
-forge/api/
+forail/api/
 ├── views/recommendations.py        # RecommendationsList APIView
 ├── serializers/recommendations.py  # RecommendationSerializer
 └── urls/recommendations.py         # urlpatterns
@@ -60,7 +60,7 @@ tests_standalone/
 
 The module is **not** a Django app — it has no `apps.py`, no `models.py`, no
 migrations, and is **not** registered in `INSTALLED_APPS`. Its URL include is
-wired directly from `forge/api/urls/urls.py`.
+wired directly from `forail/api/urls/urls.py`.
 
 ---
 
@@ -187,14 +187,14 @@ inside each severity bucket (the order in which the rule is registered).
 
 ```bash
 curl -s -H "Authorization: Bearer $TOKEN" \
-  https://forge.example.com/api/v2/recommendations/
+  https://forail.example.com/api/v2/recommendations/
 ```
 
 **Only compliance**
 
 ```bash
 curl -s -H "Authorization: Bearer $TOKEN" \
-  "https://forge.example.com/api/v2/recommendations/?scope=compliance"
+  "https://forail.example.com/api/v2/recommendations/?scope=compliance"
 ```
 
 ```json
@@ -217,7 +217,7 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 
 ```bash
 curl -s -H "Authorization: Bearer $TOKEN" \
-  "https://forge.example.com/api/v2/recommendations/?scope=tenancy"
+  "https://forail.example.com/api/v2/recommendations/?scope=tenancy"
 ```
 
 ```json
@@ -308,7 +308,7 @@ matching the backend cache TTL.
 
 ## Adding a New Rule
 
-1. Edit `forge/main/recommendations/rules.py`. Add a function:
+1. Edit `forail/main/recommendations/rules.py`. Add a function:
 
    ```python
    def rule_my_new_check(ctx: RuleContext) -> Recommendation | None:
@@ -386,4 +386,4 @@ runs in well under a second.
 - [19 — Policy-as-Code](19-policy-as-code.md) — feeds `all_policies_warn`
 - [20 — IaC Scanning](20-iac-scanning.md) — feeds `no_scanners`
 - [22 — Multi-Tenancy](22-multi-tenancy.md) — feeds `multi_org_no_tenancy`, `tenant_near_quota`
-- [User Handbook → Dashboard](../../forge-deploy/docs/HANDBOOK.md#dashboard) — where the UI surfaces these
+- [User Handbook → Dashboard](../../forail-deploy/docs/HANDBOOK.md#dashboard) — where the UI surfaces these

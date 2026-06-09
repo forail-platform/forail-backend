@@ -7,7 +7,7 @@ about what is **inside** the playbook: `shell:` with unquoted variables,
 unpinned role sources, hard-coded secrets, Python dependencies with
 known CVEs.
 
-Three open-source CLIs run as subprocesses out of the forge venv:
+Three open-source CLIs run as subprocesses out of the forail venv:
 
 - **ansible-lint** — Ansible rules catalog (MIT)
 - **checkov** — multi-IaC scanner incl. Ansible (Apache 2.0)
@@ -53,7 +53,7 @@ empty allow-immediately `ScanRunResult`.
 
 ---
 
-## Models — `forge/main/models/scanner.py`
+## Models — `forail/main/models/scanner.py`
 
 ### `Scanner(CommonModelNameNotUnique)`
 
@@ -99,7 +99,7 @@ One row per scanner execution.
 | `line`        | Optional                                                    |
 | `message`     | Human-readable                                              |
 
-Migration: `forge/main/migrations/0203_scanner.py`. All three models are
+Migration: `forail/main/migrations/0203_scanner.py`. All three models are
 registered with `permission_registry` and `activity_stream_registrar`.
 
 ### Pure helpers
@@ -117,7 +117,7 @@ Severity ordering: `info(0) < low(1) < medium(2) < high(3) < critical(4)`.
 
 ---
 
-## Tool adapters — `forge/main/scanning/tools/`
+## Tool adapters — `forail/main/scanning/tools/`
 
 One file per tool. Each exposes the same interface used by the runner:
 
@@ -126,7 +126,7 @@ build_command(target_path, config) -> list[str]
 parse_output(stdout, stderr, returncode) -> list[NormalizedFinding]
 ```
 
-`NormalizedFinding` (from `forge.main.scanning.types`) has
+`NormalizedFinding` (from `forail.main.scanning.types`) has
 `rule_id, severity, file_path, line, message`.
 
 | Adapter           | CLI invocation                                      | Severity mapping                                                                                                          |
@@ -135,12 +135,12 @@ parse_output(stdout, stderr, returncode) -> list[NormalizedFinding]
 | `checkov.py`      | `checkov -f <playbook> --framework ansible -o json` | `CRITICAL`→critical, `HIGH`→high, `MEDIUM`→medium, `LOW`→low; anything else → info.                                       |
 | `pip_audit.py`    | `pip-audit -r <requirements.txt> --format json`     | OSV severity field → mapped directly; missing → medium by default.                                                        |
 
-A tool registry in `forge/main/scanning/tools/__init__.py` exposes
+A tool registry in `forail/main/scanning/tools/__init__.py` exposes
 `get_adapter(tool_name)` used by the runner.
 
 ---
 
-## Runner — `forge/main/scanning/runner.py`
+## Runner — `forail/main/scanning/runner.py`
 
 ```python
 def run_scanners_for_launch(unified_job, request=None) -> ScanRunResult:
@@ -185,7 +185,7 @@ the FK cascade doesn't lose the audit row when the view deletes the job.
 
 ---
 
-## Settings — `forge/main/conf.py`
+## Settings — `forail/main/conf.py`
 
 Registered under the **Security** category:
 
@@ -203,12 +203,12 @@ Registered under the **Security** category:
 Same three launch views as Policy-as-Code, inserted **after** the OPA
 hook so a policy denial short-circuits the scan:
 
-- `forge/api/views/job_templates.py` → `JobTemplateLaunch.post`
-- `forge/api/views/workflows.py` → `WorkflowJobTemplateLaunch.post`
-- `forge/api/views/ad_hoc_commands.py` → `AdHocCommandList.create`
+- `forail/api/views/job_templates.py` → `JobTemplateLaunch.post`
+- `forail/api/views/workflows.py` → `WorkflowJobTemplateLaunch.post`
+- `forail/api/views/ad_hoc_commands.py` → `AdHocCommandList.create`
 
 ```python
-from forge.main.scanning.runner import run_scanners_for_launch
+from forail.main.scanning.runner import run_scanners_for_launch
 scan_result = run_scanners_for_launch(new_job, request)
 if not scan_result.allowed:
     new_job.delete()
@@ -264,9 +264,9 @@ Run with: `python -m unittest tests_standalone.test_scanner -v`
 
 ## Deployment
 
-- The scanner CLIs live inside the `forge-backend` image, installed
+- The scanner CLIs live inside the `forail-backend` image, installed
   into `/var/lib/awx/venv/awx` so Django subprocess calls find them
-  on PATH. See `forge-backend/Dockerfile`:
+  on PATH. See `forail-backend/Dockerfile`:
 
   ```dockerfile
   RUN /var/lib/awx/venv/awx/bin/pip install --no-cache-dir \
@@ -275,8 +275,8 @@ Run with: `python -m unittest tests_standalone.test_scanner -v`
           'pip-audit==2.7.*'
   ```
 
-- No new compose service is needed. The `forge_projects` named volume
-  is already mounted on all forge containers (via the `x-forge-common`
+- No new compose service is needed. The `forail_projects` named volume
+  is already mounted on all forail containers (via the `x-forail-common`
   anchor in `docker-compose.yml`), so the runner sees the project
   checkout path on disk.
 

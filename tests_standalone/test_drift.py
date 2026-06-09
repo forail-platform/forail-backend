@@ -19,7 +19,7 @@ import os
 import importlib.util
 
 # Load drift module directly to avoid Django/Celery dependency chain
-_drift_path = os.path.join(os.path.dirname(__file__), '..', 'forge', 'main', 'tasks', 'drift.py')
+_drift_path = os.path.join(os.path.dirname(__file__), '..', 'forail', 'main', 'tasks', 'drift.py')
 _drift_path = os.path.abspath(_drift_path)
 
 # We need to mock celery.shared_task before importing

@@ -1,4 +1,4 @@
--include forge/ui_next/Makefile
+-include forail/ui_next/Makefile
 
 PYTHON := $(notdir $(shell for i in python3.12 python3.11 python3; do command -v $$i; done|sed 1q))
 SHELL := bash
@@ -9,7 +9,7 @@ NPM_BIN ?= npm
 KIND_BIN ?= $(shell which kind)
 CHROMIUM_BIN=/tmp/chrome-linux/chrome
 GIT_BRANCH ?= $(shell git rev-parse --abbrev-ref HEAD)
-MANAGEMENT_COMMAND ?= forge-manage
+MANAGEMENT_COMMAND ?= forail-manage
 VERSION ?= $(shell $(PYTHON) tools/scripts/scm_version.py 2> /dev/null)
 
 # ansible-test requires semver compatable version, so we allow overrides to hack it
@@ -64,7 +64,7 @@ DEV_DOCKER_OWNER_LOWER = $(shell echo $(DEV_DOCKER_OWNER) | tr A-Z a-z)
 DEV_DOCKER_TAG_BASE ?= ghcr.io/$(DEV_DOCKER_OWNER_LOWER)
 DEVEL_IMAGE_NAME ?= $(DEV_DOCKER_TAG_BASE)/awx_devel:$(COMPOSE_TAG)
 IMAGE_KUBE_DEV=$(DEV_DOCKER_TAG_BASE)/awx_kube_devel:$(COMPOSE_TAG)
-IMAGE_KUBE=$(DEV_DOCKER_TAG_BASE)/forge:$(COMPOSE_TAG)
+IMAGE_KUBE=$(DEV_DOCKER_TAG_BASE)/forail:$(COMPOSE_TAG)
 
 # Common command to use for running ansible-playbook
 ANSIBLE_PLAYBOOK ?= ansible-playbook -e ansible_python_interpreter=$(PYTHON)
@@ -86,7 +86,7 @@ SRC_ONLY_PKGS ?= cffi,pycparser,psycopg,twilio
 # to install the actual requirements
 VENV_BOOTSTRAP ?= pip==24.0 setuptools==70.0.0 setuptools_scm[toml]==8.1.0 wheel==0.43.0 cython==3.0.11
 
-NAME ?= forge
+NAME ?= forail
 
 # TAR build parameters
 SDIST_TAR_NAME=$(NAME)-$(VERSION)
@@ -111,7 +111,7 @@ else
  DOCKER_KUBE_CACHE_FLAG=$(DOCKER_CACHE)
 endif
 
-.PHONY: forge-link clean clean-tmp clean-venv requirements requirements_dev \
+.PHONY: forail-link clean clean-tmp clean-venv requirements requirements_dev \
 	develop refresh adduser migrate dbchange \
 	receiver test test_unit test_coverage coverage_html \
 	sdist \
@@ -135,14 +135,14 @@ clean-schema:
 
 clean-languages:
 	rm -f $(I18N_FLAG_FILE)
-	find ./forge/locale/ -type f -regex '.*\.mo$$' -delete
+	find ./forail/locale/ -type f -regex '.*\.mo$$' -delete
 
 ## Remove temporary build files, compiled Python files.
 clean: clean-ui clean-api clean-awxkit clean-dist
-	rm -rf forge/public
-	rm -rf forge/lib/site-packages
-	rm -rf forge/job_status
-	rm -rf forge/job_output
+	rm -rf forail/public
+	rm -rf forail/lib/site-packages
+	rm -rf forail/job_status
+	rm -rf forail/job_output
 	rm -rf reports
 	rm -rf tmp
 	rm -rf $(I18N_FLAG_FILE)
@@ -153,9 +153,9 @@ clean-api:
 	rm -rf .tox
 	find . -type f -regex ".*\.py[co]$$" -delete
 	find . -type d -name "__pycache__" -delete
-	rm -f forge/forge_test.sqlite3*
+	rm -f forail/forail_test.sqlite3*
 	rm -rf requirements/vendor
-	rm -rf forge/projects
+	rm -rf forail/projects
 
 clean-awxkit:
 	rm -rf awxkit/*.egg-info awxkit/.tox awxkit/build/*
@@ -205,10 +205,10 @@ requirements_test: requirements
 ## "Install" awx package in development mode.
 develop:
 	@if [ "$(VIRTUAL_ENV)" ]; then \
-	    pip uninstall -y forge; \
+	    pip uninstall -y forail; \
 	    $(PYTHON) setup.py develop; \
 	else \
-	    pip uninstall -y forge; \
+	    pip uninstall -y forail; \
 	    $(PYTHON) setup.py develop; \
 	fi
 
@@ -217,7 +217,7 @@ version_file:
 	if [ "$(VENV_BASE)" ]; then \
 		. $(VENV_BASE)/awx/bin/activate; \
 	fi; \
-	$(PYTHON) -c "import forge; print(forge.__version__)" > /var/lib/awx/.awx_version; \
+	$(PYTHON) -c "import forail; print(forail.__version__)" > /var/lib/awx/.awx_version; \
 
 ## Refresh development environment after pulling new code.
 refresh: clean requirements_dev version_file develop migrate
@@ -255,14 +255,14 @@ uwsgi: collectstatic
 	fi; \
 	uwsgi /etc/tower/uwsgi.ini
 
-forge-autoreload:
-	@/awx_devel/tools/docker-compose/forge-autoreload /awx_devel/forge
+forail-autoreload:
+	@/awx_devel/tools/docker-compose/forail-autoreload /awx_devel/forail
 
 daphne:
 	@if [ "$(VENV_BASE)" ]; then \
 		. $(VENV_BASE)/awx/bin/activate; \
 	fi; \
-	daphne -b 127.0.0.1 -p 8051 forge.asgi:channel_layer
+	daphne -b 127.0.0.1 -p 8051 forail.asgi:channel_layer
 
 ## Run to start the background task dispatcher for development.
 dispatcher:
@@ -320,7 +320,7 @@ reports:
 
 black: reports
 	@command -v black >/dev/null 2>&1 || { echo "could not find black on your PATH, you may need to \`pip install black\`, or set AWX_IGNORE_BLACK=1" && exit 1; }
-	@(set -o pipefail && $@ $(BLACK_ARGS) forge awxkit awx_collection | tee reports/$@.report)
+	@(set -o pipefail && $@ $(BLACK_ARGS) forail awxkit awx_collection | tee reports/$@.report)
 
 .git/hooks/pre-commit:
 	@echo "if [ -x pre-commit.sh ]; then" > .git/hooks/pre-commit
@@ -336,20 +336,20 @@ swagger: reports
 	@if [ "$(VENV_BASE)" ]; then \
 		. $(VENV_BASE)/awx/bin/activate; \
 	fi; \
-	(set -o pipefail && py.test $(PYTEST_ARGS) forge/conf/tests/functional forge/main/tests/functional/api forge/main/tests/docs | tee reports/$@.report)
+	(set -o pipefail && py.test $(PYTEST_ARGS) forail/conf/tests/functional forail/main/tests/functional/api forail/main/tests/docs | tee reports/$@.report)
 
 check: black
 
 api-lint:
 	BLACK_ARGS="--check" $(MAKE) black
-	flake8 forge
+	flake8 forail
 	yamllint -s .
 
-## Run egg_info_dev to generate forge.egg-info for development.
-forge-link:
-	[ -d "/awx_devel/forge.egg-info" ] || $(PYTHON) /awx_devel/tools/scripts/egg_info_dev
+## Run egg_info_dev to generate forail.egg-info for development.
+forail-link:
+	[ -d "/awx_devel/forail.egg-info" ] || $(PYTHON) /awx_devel/tools/scripts/egg_info_dev
 
-TEST_DIRS ?= forge/main/tests/unit forge/main/tests/functional forge/conf/tests forge/sso/tests
+TEST_DIRS ?= forail/main/tests/unit forail/main/tests/functional forail/conf/tests forail/sso/tests
 PYTEST_ARGS ?= -n auto
 ## Run all API unit tests.
 test:
@@ -358,7 +358,7 @@ test:
 	fi; \
 	PYTHONDONTWRITEBYTECODE=1 py.test -p no:cacheprovider $(PYTEST_ARGS) $(TEST_DIRS)
 	cd awxkit && $(VENV_BASE)/awx/bin/tox -re py3
-	forge-manage check_migrations --dry-run --check  -n 'missing_migration_file'
+	forail-manage check_migrations --dry-run --check  -n 'missing_migration_file'
 
 test_migrations:
 	if [ "$(VENV_BASE)" ]; then \
@@ -371,7 +371,7 @@ docker-runner:
 	docker run -u $(shell id -u) --rm -v $(shell pwd):/awx_devel/:Z --workdir=/awx_devel $(DEVEL_IMAGE_NAME) $(AWX_DOCKER_CMD)
 
 test_collection:
-	rm -f $(shell ls -d $(VENV_BASE)/forge/lib/python* | head -n 1)/no-global-site-packages.txt
+	rm -f $(shell ls -d $(VENV_BASE)/forail/lib/python* | head -n 1)/no-global-site-packages.txt
 	if [ "$(VENV_BASE)" ]; then \
 		. $(VENV_BASE)/awx/bin/activate; \
 	fi && \
@@ -421,14 +421,14 @@ test_unit:
 	@if [ "$(VENV_BASE)" ]; then \
 		. $(VENV_BASE)/awx/bin/activate; \
 	fi; \
-	py.test forge/main/tests/unit forge/conf/tests/unit forge/sso/tests/unit
+	py.test forail/main/tests/unit forail/conf/tests/unit forail/sso/tests/unit
 
 ## Run all API unit tests with coverage enabled.
 test_coverage:
 	@if [ "$(VENV_BASE)" ]; then \
 		. $(VENV_BASE)/awx/bin/activate; \
 	fi; \
-	py.test --create-db --cov=forge --cov-report=xml --junitxml=./reports/junit.xml $(TEST_DIRS)
+	py.test --create-db --cov=forail --cov-report=xml --junitxml=./reports/junit.xml $(TEST_DIRS)
 
 ## Output test coverage as HTML (into htmlcov directory).
 coverage_html:
@@ -451,66 +451,66 @@ bulk_data:
 # UI TASKS
 # --------------------------------------
 
-UI_BUILD_FLAG_FILE = forge/ui/.ui-built
+UI_BUILD_FLAG_FILE = forail/ui/.ui-built
 
 clean-ui:
 	rm -rf node_modules
-	rm -rf forge/ui/node_modules
-	rm -rf forge/ui/build
-	rm -rf forge/ui/src/locales/_build
+	rm -rf forail/ui/node_modules
+	rm -rf forail/ui/build
+	rm -rf forail/ui/src/locales/_build
 	rm -rf $(UI_BUILD_FLAG_FILE)
         # the collectstatic command doesn't like it if this dir doesn't exist.
-	mkdir -p forge/ui/build/static
+	mkdir -p forail/ui/build/static
 
-forge/ui/node_modules:
-	NODE_OPTIONS=--max-old-space-size=6144 $(NPM_BIN) --prefix forge/ui --loglevel warn --force ci
+forail/ui/node_modules:
+	NODE_OPTIONS=--max-old-space-size=6144 $(NPM_BIN) --prefix forail/ui --loglevel warn --force ci
 
 $(UI_BUILD_FLAG_FILE):
-	$(MAKE) forge/ui/node_modules
+	$(MAKE) forail/ui/node_modules
 	$(PYTHON) tools/scripts/compilemessages.py
-	$(NPM_BIN) --prefix forge/ui --loglevel warn run compile-strings
-	$(NPM_BIN) --prefix forge/ui --loglevel warn run build
+	$(NPM_BIN) --prefix forail/ui --loglevel warn run compile-strings
+	$(NPM_BIN) --prefix forail/ui --loglevel warn run build
 	touch $@
 
 ui-release: $(UI_BUILD_FLAG_FILE)
 
-ui-devel: forge/ui/node_modules
+ui-devel: forail/ui/node_modules
 	@$(MAKE) -B $(UI_BUILD_FLAG_FILE)
 	@if [ -d "/var/lib/awx" ] ; then \
-		mkdir -p /var/lib/forge/public/static/css; \
-		mkdir -p /var/lib/forge/public/static/js; \
-		mkdir -p /var/lib/forge/public/static/media; \
-		cp -r forge/ui/build/static/css/* /var/lib/forge/public/static/css; \
-		cp -r forge/ui/build/static/js/* /var/lib/forge/public/static/js; \
-		cp -r forge/ui/build/static/media/* /var/lib/forge/public/static/media; \
+		mkdir -p /var/lib/forail/public/static/css; \
+		mkdir -p /var/lib/forail/public/static/js; \
+		mkdir -p /var/lib/forail/public/static/media; \
+		cp -r forail/ui/build/static/css/* /var/lib/forail/public/static/css; \
+		cp -r forail/ui/build/static/js/* /var/lib/forail/public/static/js; \
+		cp -r forail/ui/build/static/media/* /var/lib/forail/public/static/media; \
 	fi
 
-ui-devel-instrumented: forge/ui/node_modules
-	$(NPM_BIN) --prefix forge/ui --loglevel warn run start-instrumented
+ui-devel-instrumented: forail/ui/node_modules
+	$(NPM_BIN) --prefix forail/ui --loglevel warn run start-instrumented
 
-ui-devel-test: forge/ui/node_modules
-	$(NPM_BIN) --prefix forge/ui --loglevel warn run start
+ui-devel-test: forail/ui/node_modules
+	$(NPM_BIN) --prefix forail/ui --loglevel warn run start
 
 ui-lint:
-	$(NPM_BIN) --prefix forge/ui install
-	$(NPM_BIN) run --prefix forge/ui lint
-	$(NPM_BIN) run --prefix forge/ui prettier-check
+	$(NPM_BIN) --prefix forail/ui install
+	$(NPM_BIN) run --prefix forail/ui lint
+	$(NPM_BIN) run --prefix forail/ui prettier-check
 
 ui-test:
-	$(NPM_BIN) --prefix forge/ui install
-	$(NPM_BIN) run --prefix forge/ui test
+	$(NPM_BIN) --prefix forail/ui install
+	$(NPM_BIN) run --prefix forail/ui test
 
 ui-test-screens:
-	$(NPM_BIN) --prefix forge/ui install
-	$(NPM_BIN) run --prefix forge/ui pretest
-	$(NPM_BIN) run --prefix forge/ui test-screens --runInBand
+	$(NPM_BIN) --prefix forail/ui install
+	$(NPM_BIN) run --prefix forail/ui pretest
+	$(NPM_BIN) run --prefix forail/ui test-screens --runInBand
 
 ui-test-general:
-	$(NPM_BIN) --prefix forge/ui install
-	$(NPM_BIN) run --prefix forge/ui pretest
-	$(NPM_BIN) run --prefix forge/ui/ test-general --runInBand
+	$(NPM_BIN) --prefix forail/ui install
+	$(NPM_BIN) run --prefix forail/ui pretest
+	$(NPM_BIN) run --prefix forail/ui/ test-general --runInBand
 
-# NOTE: The make target ui-next is imported from forge/ui_next/Makefile
+# NOTE: The make target ui-next is imported from forail/ui_next/Makefile
 HEADLESS ?= no
 ifeq ($(HEADLESS), yes)
 dist/$(SDIST_TAR_FILE):
@@ -518,7 +518,7 @@ else
 dist/$(SDIST_TAR_FILE): $(UI_BUILD_FLAG_FILE) ui-next
 endif
 	$(PYTHON) -m build -s
-	ln -sf $(SDIST_TAR_FILE) dist/forge.tar.gz
+	ln -sf $(SDIST_TAR_FILE) dist/forail.tar.gz
 
 sdist: dist/$(SDIST_TAR_FILE)
 	echo $(HEADLESS)
@@ -530,7 +530,7 @@ sdist: dist/$(SDIST_TAR_FILE)
 # This directory is bind-mounted inside of the development container and
 # needs to be pre-created for permissions to be set correctly. Otherwise,
 # Docker will create this directory as root.
-forge/projects:
+forail/projects:
 	@mkdir -p $@
 
 COMPOSE_UP_OPTS ?=
@@ -572,7 +572,7 @@ docker-compose-sources: .git/hooks/pre-commit
 	    -e pg_tls=$(PG_TLS) \
 	    $(EXTRA_SOURCES_ANSIBLE_OPTS)
 
-docker-compose: forge/projects docker-compose-sources
+docker-compose: forail/projects docker-compose-sources
 	ansible-galaxy install --ignore-certs -r tools/docker-compose/ansible/requirements.yml;
 	$(ANSIBLE_PLAYBOOK) -i tools/docker-compose/inventory tools/docker-compose/ansible/initialize_containers.yml \
 	    -e enable_vault=$(VAULT) \
@@ -586,17 +586,17 @@ docker-compose-up:
 docker-compose-down:
 	$(DOCKER_COMPOSE) -f tools/docker-compose/_sources/docker-compose.yml $(COMPOSE_OPTS) down --remove-orphans
 
-docker-compose-credential-plugins: forge/projects docker-compose-sources
+docker-compose-credential-plugins: forail/projects docker-compose-sources
 	echo -e "\033[0;31mTo generate a CyberArk Conjur API key: docker exec -it tools_conjur_1 conjurctl account create quick-start\033[0m"
 	$(DOCKER_COMPOSE) -f tools/docker-compose/_sources/docker-compose.yml -f tools/docker-credential-plugins-override.yml up --no-recreate awx_1 --remove-orphans
 
-docker-compose-test: forge/projects docker-compose-sources
+docker-compose-test: forail/projects docker-compose-sources
 	$(DOCKER_COMPOSE) -f tools/docker-compose/_sources/docker-compose.yml run --rm --service-ports awx_1 /bin/bash
 
-docker-compose-runtest: forge/projects docker-compose-sources
+docker-compose-runtest: forail/projects docker-compose-sources
 	$(DOCKER_COMPOSE) -f tools/docker-compose/_sources/docker-compose.yml run --rm --service-ports awx_1 /start_tests.sh
 
-docker-compose-build-swagger: forge/projects docker-compose-sources
+docker-compose-build-swagger: forail/projects docker-compose-sources
 	$(DOCKER_COMPOSE) -f tools/docker-compose/_sources/docker-compose.yml run --rm --service-ports --no-deps awx_1 /start_tests.sh swagger
 
 SCHEMA_DIFF_BASE_BRANCH ?= devel
@@ -605,7 +605,7 @@ detect-schema-change: genschema
 	# Ignore differences in whitespace with -b
 	diff -u -b reference-schema.json schema.json
 
-docker-compose-clean: forge/projects
+docker-compose-clean: forail/projects
 	$(DOCKER_COMPOSE) -f tools/docker-compose/_sources/docker-compose.yml rm -sf
 
 docker-compose-container-group-clean:
@@ -655,10 +655,10 @@ docker-clean-volumes: docker-compose-clean docker-compose-container-group-clean
 docker-refresh: docker-clean docker-compose
 
 ## Docker Development Environment with Elastic Stack Connected
-docker-compose-elk: forge/projects docker-compose-sources
+docker-compose-elk: forail/projects docker-compose-sources
 	$(DOCKER_COMPOSE) -f tools/docker-compose/_sources/docker-compose.yml -f tools/elastic/docker-compose.logstash-link.yml -f tools/elastic/docker-compose.elastic-override.yml up --no-recreate
 
-docker-compose-cluster-elk: forge/projects docker-compose-sources
+docker-compose-cluster-elk: forail/projects docker-compose-sources
 	$(DOCKER_COMPOSE) -f tools/docker-compose/_sources/docker-compose.yml -f tools/elastic/docker-compose.logstash-link-cluster.yml -f tools/elastic/docker-compose.elastic-override.yml up --no-recreate
 
 docker-compose-container-group:
@@ -673,7 +673,7 @@ clean-elk:
 	docker rm tools_kibana_1
 
 VERSION:
-	@echo "forge: $(VERSION)"
+	@echo "forail: $(VERSION)"
 
 PYTHON_VERSION:
 	@echo "$(subst python,,$(PYTHON))"
@@ -698,7 +698,7 @@ Dockerfile: tools/ansible/roles/dockerfile/templates/$(DOCKERFILE_TEMPLATE)
 		-e dockerfile_template=$(DOCKERFILE_TEMPLATE)
 
 ## Build awx image for deployment on Kubernetes environment.
-forge-kube-build: Dockerfile
+forail-kube-build: Dockerfile
 	DOCKER_BUILDKIT=1 docker build -f Dockerfile \
 		--build-arg VERSION=$(VERSION) \
 		--build-arg SETUPTOOLS_SCM_PRETEND_VERSION=$(VERSION) \
@@ -707,9 +707,9 @@ forge-kube-build: Dockerfile
 		-t $(IMAGE_KUBE) .
 
 ## Build multi-arch awx image for deployment on Kubernetes environment.
-forge-kube-buildx: Dockerfile
-	- docker buildx create --name forge-kube-buildx
-	docker buildx use forge-kube-buildx
+forail-kube-buildx: Dockerfile
+	- docker buildx create --name forail-kube-buildx
+	docker buildx use forail-kube-buildx
 	- docker buildx build \
 		--push \
 		--build-arg VERSION=$(VERSION) \
@@ -719,7 +719,7 @@ forge-kube-buildx: Dockerfile
 		$(DOCKER_KUBE_CACHE_FLAG) \
 		--tag $(IMAGE_KUBE) \
 		-f Dockerfile .
-	- docker buildx rm forge-kube-buildx
+	- docker buildx rm forail-kube-buildx
 
 
 .PHONY: Dockerfile.kube-dev
@@ -733,16 +733,16 @@ Dockerfile.kube-dev: tools/ansible/roles/dockerfile/templates/$(DOCKERFILE_TEMPL
 	    -e dockerfile_template=$(DOCKERFILE_TEMPLATE)
 
 ## Build awx_kube_devel image for development on local Kubernetes environment.
-forge-kube-dev-build: Dockerfile.kube-dev
+forail-kube-dev-build: Dockerfile.kube-dev
 	DOCKER_BUILDKIT=1 docker build -f Dockerfile.kube-dev \
 	    --build-arg BUILDKIT_INLINE_CACHE=1 \
 	     $(DOCKER_KUBE_DEV_CACHE_FLAG) \
 	    -t $(IMAGE_KUBE_DEV) .
 
 ## Build and push multi-arch awx_kube_devel image for development on local Kubernetes environment.
-forge-kube-dev-buildx: Dockerfile.kube-dev
-	- docker buildx create --name forge-kube-dev-buildx
-	docker buildx use forge-kube-dev-buildx
+forail-kube-dev-buildx: Dockerfile.kube-dev
+	- docker buildx create --name forail-kube-dev-buildx
+	docker buildx use forail-kube-dev-buildx
 	- docker buildx build \
 		--push \
 		--build-arg BUILDKIT_INLINE_CACHE=1 \
@@ -750,9 +750,9 @@ forge-kube-dev-buildx: Dockerfile.kube-dev
 		--platform=$(PLATFORMS) \
 		--tag $(IMAGE_KUBE_DEV) \
 		-f Dockerfile.kube-dev .
-	- docker buildx rm forge-kube-dev-buildx
+	- docker buildx rm forail-kube-dev-buildx
 
-kind-dev-load: forge-kube-dev-build
+kind-dev-load: forail-kube-dev-build
 	$(KIND_BIN) load docker-image $(IMAGE_KUBE_DEV)
 
 # Translation TASKS
@@ -760,13 +760,13 @@ kind-dev-load: forge-kube-dev-build
 
 ## generate UI .pot file, an empty template of strings yet to be translated
 pot: $(UI_BUILD_FLAG_FILE)
-	$(NPM_BIN) --prefix forge/ui --loglevel warn run extract-template --clean
-	$(NPM_BIN) --prefix forge/ui_next --loglevel warn run extract-template --clean
+	$(NPM_BIN) --prefix forail/ui --loglevel warn run extract-template --clean
+	$(NPM_BIN) --prefix forail/ui_next --loglevel warn run extract-template --clean
 
 ## generate UI .po files for each locale (will update translated strings for `en`)
 po: $(UI_BUILD_FLAG_FILE)
-	$(NPM_BIN) --prefix forge/ui --loglevel warn run extract-strings -- --clean
-	$(NPM_BIN) --prefix forge/ui_next --loglevel warn run extract-strings -- --clean
+	$(NPM_BIN) --prefix forail/ui --loglevel warn run extract-strings -- --clean
+	$(NPM_BIN) --prefix forail/ui_next --loglevel warn run extract-strings -- --clean
 
 ## generate API django .pot .po
 messages:
@@ -816,4 +816,4 @@ help/generate:
 
 ## Display help for ui-next targets
 help/ui-next:
-	@$(MAKE) -s help MAKEFILE_LIST="forge/ui_next/Makefile"
+	@$(MAKE) -s help MAKEFILE_LIST="forail/ui_next/Makefile"

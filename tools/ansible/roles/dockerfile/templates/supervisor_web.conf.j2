@@ -43,7 +43,7 @@ stderr_logfile_maxbytes=0
 command = make daphne
 directory = /awx_devel
 {% else %}
-command = /var/lib/awx/venv/awx/bin/daphne -b 127.0.0.1 -p 8051 --websocket_timeout -1 forge.asgi:channel_layer
+command = /var/lib/awx/venv/awx/bin/daphne -b 127.0.0.1 -p 8051 --websocket_timeout -1 forail.asgi:channel_layer
 directory = /var/lib/awx
 {% endif %}
 autorestart = true
@@ -60,7 +60,7 @@ stderr_logfile_maxbytes=0
 command = make run-ws-heartbeat
 directory = /awx_devel
 {% else %}
-command = forge-manage run_ws_heartbeat
+command = forail-manage run_ws_heartbeat
 directory = /var/lib/awx
 {% endif %}
 autorestart = true
@@ -72,12 +72,12 @@ stdout_logfile_maxbytes=0
 stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
 
-[program:forge-cache-clear]
+[program:forail-cache-clear]
 {% if kube_dev | bool %}
 command = make run-cache-clear
 directory = /awx_devel
 {% else %}
-command = forge-manage run_cache_clear
+command = forail-manage run_cache_clear
 directory = /var/lib/awx
 {% endif %}
 autorestart = true
@@ -90,8 +90,8 @@ stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
 
 {% if kube_dev | bool %}
-[program:forge-autoreload]
-command = /awx_devel/tools/docker-compose/awx-autoreload /awx_devel/forge
+[program:forail-autoreload]
+command = /awx_devel/tools/docker-compose/awx-autoreload /awx_devel/forail
 autostart = true
 autorestart = true
 stopasgroup=true
@@ -103,7 +103,7 @@ stderr_logfile_maxbytes=0
 {% endif %}
 
 [group:tower-processes]
-programs=nginx,uwsgi,daphne,forge-cache-clear,ws-heartbeat
+programs=nginx,uwsgi,daphne,forail-cache-clear,ws-heartbeat
 priority=5
 
 [eventlistener:superwatcher]

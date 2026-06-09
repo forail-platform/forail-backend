@@ -45,13 +45,13 @@ Login page
 
 The OIDC client is the existing `social_core.backends.open_id_connect.OpenIdConnectAuth`
 that AWX vendored. JIT user creation and org/team mapping reuse the
-existing `forge/sso/social_pipeline.py`. We add a few extra settings
+existing `forail/sso/social_pipeline.py`. We add a few extra settings
 (button label, default scopes override, organization/team JSON maps)
 and the frontend "Sign in with OIDC" button.
 
 ---
 
-## WebAuthn models — `forge/main/models/webauthn.py`
+## WebAuthn models — `forail/main/models/webauthn.py`
 
 ### `WebAuthnCredential(CreatedModifiedModel)`
 
@@ -72,7 +72,7 @@ and the frontend "Sign in with OIDC" button.
 `WebAuthnRegistrationChallenge` and `WebAuthnAuthenticationChallenge`
 share `challenge` (random bytes), `created_at`, `expires_at`. TTL is
 **5 minutes**, controlled by `CHALLENGE_TTL_SECONDS` in
-`forge/api/views/webauthn.py`. Expired rows are purged opportunistically
+`forail/api/views/webauthn.py`. Expired rows are purged opportunistically
 on every begin call (`_purge_expired_challenges()`).
 
 ### Pure helpers (used by middleware + tested standalone)
@@ -107,13 +107,13 @@ Origin and Relying-Party ID are derived from the request:
 - `_rp_id(request)` = `request.get_host().split(':')[0]`
 
 This means the same image works on `https://localhost`,
-`https://forge.example.com`, etc., without configuration.
+`https://forail.example.com`, etc., without configuration.
 
 ---
 
 ## OIDC
 
-### Settings (`forge/sso/conf.py`)
+### Settings (`forail/sso/conf.py`)
 
 The four core OIDC settings already existed (legacy AWX heritage):
 
@@ -132,17 +132,17 @@ This feature adds four more under the same `oidc` category slug:
 The base `social_core.backends.open_id_connect.OpenIdConnectAuth` is
 already wired into `AUTHENTICATION_BACKENDS` via the existing
 "add backend if its required settings are present" pattern in
-`forge/sso/fields.py`. The login URL is `/sso/login/oidc/` (handled by
+`forail/sso/fields.py`. The login URL is `/sso/login/oidc/` (handled by
 `social-auth-app-django` URL routing — no new view needed).
 
-A `ForgeOIDCAuth` subclass is provided as a hook for future custom claim
+A `ForailOIDCAuth` subclass is provided as a hook for future custom claim
 mapping but is not currently registered.
 
 ---
 
 ## MFA enforcement middleware
 
-`forge/main/middleware.py::WebAuthnMfaEnforcementMiddleware`
+`forail/main/middleware.py::WebAuthnMfaEnforcementMiddleware`
 
 Runs after `AuthenticationMiddleware`. For every authenticated request:
 

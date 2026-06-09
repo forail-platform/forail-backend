@@ -1,6 +1,6 @@
 # 05 — Authentication & RBAC
 
-Forge supports multiple authentication methods and has a powerful role-based
+Forail supports multiple authentication methods and has a powerful role-based
 access control system. This document covers how users authenticate and how
 permissions work.
 
@@ -43,27 +43,27 @@ For scripts, automation, and integrations.
 
 ```bash
 # Via CLI
-forge-manage create_oauth2_token --user=admin
+forail-manage create_oauth2_token --user=admin
 
 # Via API
 curl -u admin:password -X POST \
   -H 'Content-Type: application/json' \
   -d '{"scope": "write"}' \
-  https://forge.example.com/api/v2/tokens/
+  https://forail.example.com/api/v2/tokens/
 ```
 
 ### Usage
 
 ```bash
 curl -H 'Authorization: Bearer <token>' \
-  https://forge.example.com/api/v2/job_templates/
+  https://forail.example.com/api/v2/job_templates/
 ```
 
 **Watch out:**
 
 - Token scope: `read` (GET only) or `write` (everything)
 - Default token expiry is very long (~1000 years). For security, rotate tokens
-  periodically and delete old ones: `forge-manage cleanup_tokens`
+  periodically and delete old ones: `forail-manage cleanup_tokens`
 
 ---
 
@@ -73,8 +73,8 @@ LDAP is configured via the API: `PATCH /api/v2/settings/ldap/`
 
 ### What happens during LDAP login
 
-1. User enters username/password in the Forge login form
-2. Forge connects to the LDAP server with a service account
+1. User enters username/password in the Forail login form
+2. Forail connects to the LDAP server with a service account
 3. Searches for the user's DN based on `AUTH_LDAP_USER_SEARCH`
 4. Attempts to bind as the user with the entered password
 5. If successful — maps LDAP attributes to Django user fields
@@ -87,11 +87,11 @@ LDAP is configured via the API: `PATCH /api/v2/settings/ldap/`
 - **`AUTH_LDAP_SERVER_URI`** — Use `ldaps://` (port 636) for production.
   `ldap://` (port 389) sends passwords in plaintext.
 
-- **Organization/Team Map** — Maps LDAP groups to Forge organizations and teams.
+- **Organization/Team Map** — Maps LDAP groups to Forail organizations and teams.
   `remove_users: true` means users NOT in the LDAP group will be **removed**
   from the organization on their next login. Be careful with this.
 
-- **Multiple LDAP servers** — Forge supports up to 5 LDAP servers (AUTH_LDAP_1 through AUTH_LDAP_5).
+- **Multiple LDAP servers** — Forail supports up to 5 LDAP servers (AUTH_LDAP_1 through AUTH_LDAP_5).
   Each has its own configuration.
 
 ---
@@ -108,7 +108,7 @@ You need to define:
 
 **Watch out:**
 
-- The SAML metadata endpoint is at `https://forge.example.com/sso/metadata/saml/`
+- The SAML metadata endpoint is at `https://forail.example.com/sso/metadata/saml/`
   — give this to your IDP for automatic configuration.
 - SAML requires valid HTTPS certificates on both sides.
 
@@ -126,7 +126,7 @@ You need:
 **Watch out:**
 
 - The callback URL you must register with the provider:
-  `https://forge.example.com/sso/complete/github-org/`
+  `https://forail.example.com/sso/complete/github-org/`
 - GitHub Enterprise has separate configuration with custom URLs.
 
 ---
@@ -200,14 +200,14 @@ within that organization. You don't need to add roles individually.
 ```bash
 # 1. Find the role IDs on the template
 curl -u admin:password \
-  https://forge.example.com/api/v2/job_templates/5/ \
+  https://forail.example.com/api/v2/job_templates/5/ \
   | jq '.summary_fields.object_roles'
 
 # 2. Assign execute_role (e.g., ID 43) to user (ID 7)
 curl -u admin:password -X POST \
   -H 'Content-Type: application/json' \
   -d '{"id": 7}' \
-  https://forge.example.com/api/v2/roles/43/users/
+  https://forail.example.com/api/v2/roles/43/users/
 ```
 
 ### Give a team admin access to an inventory
@@ -217,7 +217,7 @@ curl -u admin:password -X POST \
 curl -u admin:password -X POST \
   -H 'Content-Type: application/json' \
   -d '{"id": 3}' \
-  https://forge.example.com/api/v2/roles/55/teams/
+  https://forail.example.com/api/v2/roles/55/teams/
 ```
 
 ### Create a read-only auditor user
@@ -226,17 +226,17 @@ curl -u admin:password -X POST \
 curl -u admin:password -X POST \
   -H 'Content-Type: application/json' \
   -d '{"username": "auditor", "password": "Pass123!", "is_system_auditor": true}' \
-  https://forge.example.com/api/v2/users/
+  https://forail.example.com/api/v2/users/
 ```
 
 ### Check what access a user has
 
 ```bash
 # All roles for a user
-curl -u admin:password https://forge.example.com/api/v2/users/7/roles/
+curl -u admin:password https://forail.example.com/api/v2/users/7/roles/
 
 # Can the user launch a template?
-curl -u user7:password https://forge.example.com/api/v2/job_templates/5/launch/
+curl -u user7:password https://forail.example.com/api/v2/job_templates/5/launch/
 # 200 = yes, 403 = no execute_role
 ```
 

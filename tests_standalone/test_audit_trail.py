@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 MockAuditEvent = MagicMock()
 mock_audit_module = MagicMock()
 mock_audit_module.AuditEvent = MockAuditEvent
-sys.modules['forge.main.models.audit'] = mock_audit_module
+sys.modules['forail.main.models.audit'] = mock_audit_module
 
 # Mock crum for get_current_user
 sys.modules.setdefault('crum', MagicMock())
@@ -72,7 +72,7 @@ check("Cleanup", get_ctx() == {'actor_ip': '', 'actor_user_agent': '', 'actor_se
 print()
 print("=== Audit Utility Functions ===")
 
-from forge.main.utils.audit import log_credential_access, log_auth_event, log_permission_change
+from forail.main.utils.audit import log_credential_access, log_auth_event, log_permission_change
 
 # -- Credential access --
 MockAuditEvent.reset_mock()
@@ -151,7 +151,7 @@ print("=== Serializer Structure ===")
 # Read serializer source to verify fields without importing (avoids full Django chain)
 import ast
 serializer_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                                'forge', 'api', 'serializers', 'audit.py')
+                                'forail', 'api', 'serializers', 'audit.py')
 with open(serializer_path) as f:
     source = f.read()
 
@@ -163,7 +163,7 @@ for field in ['actor_ip', 'actor_user_agent', 'actor_session_id', 'category', 's
     check(f"Field '{field}' in serializer", f"'{field}'" in source)
 check("read_only_fields = fields", 'read_only_fields = fields' in source)
 check("SIEM flattens detail", "detail_" in source)
-check("SIEM adds source=forge", "'forge'" in source)
+check("SIEM adds source=forail", "'forail'" in source)
 check("SIEM adds event_type", "'event_type'" in source)
 
 

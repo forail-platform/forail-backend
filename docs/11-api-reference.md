@@ -1,6 +1,6 @@
 # 11 — API Reference
 
-Forge REST API reference. All endpoints are under `/api/v2/`.
+Forail REST API reference. All endpoints are under `/api/v2/`.
 
 ---
 
@@ -12,9 +12,9 @@ Forge REST API reference. All endpoints are under `/api/v2/`.
 curl -c cookies.txt -X POST \
   -H 'Content-Type: application/json' \
   -d '{"username": "admin", "password": "password"}' \
-  https://forge.example.com/api/login/
+  https://forail.example.com/api/login/
 
-curl -b cookies.txt https://forge.example.com/api/v2/me/
+curl -b cookies.txt https://forail.example.com/api/v2/me/
 ```
 
 ### Token (API clients)
@@ -24,17 +24,17 @@ curl -b cookies.txt https://forge.example.com/api/v2/me/
 curl -u admin:password -X POST \
   -H 'Content-Type: application/json' \
   -d '{"scope": "write"}' \
-  https://forge.example.com/api/v2/tokens/
+  https://forail.example.com/api/v2/tokens/
 
 # Use the token
 curl -H 'Authorization: Bearer <token>' \
-  https://forge.example.com/api/v2/job_templates/
+  https://forail.example.com/api/v2/job_templates/
 ```
 
 ### Basic Auth
 
 ```bash
-curl -u admin:password https://forge.example.com/api/v2/job_templates/
+curl -u admin:password https://forail.example.com/api/v2/job_templates/
 ```
 
 ---
@@ -251,7 +251,7 @@ POST   /api/v2/eda_webhooks/{webhook_path}/           # Public receiver (no auth
 ### Event Rule — Create Example
 
 ```bash
-curl -X POST https://forge.example.com/api/v2/event_rules/ \
+curl -X POST https://forail.example.com/api/v2/event_rules/ \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -385,8 +385,8 @@ Response shape:
 ```json
 {
   "enabled": true,
-  "service_name": "forge",
-  "exporter_endpoint": "http://forge-otel-collector:4317",
+  "service_name": "forail",
+  "exporter_endpoint": "http://forail-otel-collector:4317",
   "sampler": "parentbased_traceidratio",
   "sampler_arg": "0.1",
   "collector_healthy": true,
@@ -425,7 +425,7 @@ order, and verification steps.
 ### Drift Alert Rule — Create Example
 
 ```bash
-curl -X POST https://forge.example.com/api/v2/drift_alert_rules/ \
+curl -X POST https://forail.example.com/api/v2/drift_alert_rules/ \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -440,17 +440,17 @@ curl -X POST https://forge.example.com/api/v2/drift_alert_rules/ \
   }'
 ```
 
-### Forge Analytics
+### Forail Analytics
 
 ```bash
-GET    /api/v2/forge_analytics/                    # Root (links to all sub-endpoints)
-GET    /api/v2/forge_analytics/job_trends/         # Job duration trends (params: period, granularity)
-GET    /api/v2/forge_analytics/success_rate/       # Success/failure rates over time
-GET    /api/v2/forge_analytics/top_templates/      # Most-used templates (params: period, limit)
-GET    /api/v2/forge_analytics/busiest_hosts/      # Hosts with most activity
-GET    /api/v2/forge_analytics/host_coverage/      # Automation coverage per inventory
-GET    /api/v2/forge_analytics/failure_analysis/   # Failure breakdown by template and host
-GET    /api/v2/forge_analytics/time_savings/       # Time savings calculator (params: manual_multiplier)
+GET    /api/v2/forail_analytics/                    # Root (links to all sub-endpoints)
+GET    /api/v2/forail_analytics/job_trends/         # Job duration trends (params: period, granularity)
+GET    /api/v2/forail_analytics/success_rate/       # Success/failure rates over time
+GET    /api/v2/forail_analytics/top_templates/      # Most-used templates (params: period, limit)
+GET    /api/v2/forail_analytics/busiest_hosts/      # Hosts with most activity
+GET    /api/v2/forail_analytics/host_coverage/      # Automation coverage per inventory
+GET    /api/v2/forail_analytics/failure_analysis/   # Failure breakdown by template and host
+GET    /api/v2/forail_analytics/time_savings/       # Time savings calculator (params: manual_multiplier)
 ```
 
 ### Administration

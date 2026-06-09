@@ -2,14 +2,14 @@
 
 **Tier 3.2 — DONE**
 
-Forge Platform supports **soft multi-tenancy**: a single Forge install can host
+Forail Platform supports **soft multi-tenancy**: a single Forail install can host
 many customer tenants, each with its own quotas, branding, and an admin team,
 without spinning up separate databases or separate Celery workers. Tenancy is
 layered on top of the existing Organization + RBAC primitives — no Postgres
 row-level security, no per-tenant schemas.
 
 Everything is additive and gated by a single kill switch (`TENANCY_ENABLED`).
-With the switch off, all tenant hooks short-circuit and Forge behaves exactly
+With the switch off, all tenant hooks short-circuit and Forail behaves exactly
 as before.
 
 ---
@@ -48,7 +48,7 @@ as before.
                 │
                 ▼
   ┌─────────────────────────────────────────┐
-  │ forge.launch  (OTel span, Tier 3.6)      │
+  │ forail.launch  (OTel span, Tier 3.6)      │
   │                                          │
   │   check_tenant_quota(job, request)  ◄── NEW  (Tier 3.2)
   │        │ allowed → inc counters         │
@@ -68,7 +68,7 @@ tenants never consume policy/scanning work. A post-finish signal decrements
 
 ---
 
-## Models — `forge/main/models/tenancy.py`
+## Models — `forail/main/models/tenancy.py`
 
 ### Organization (extended in place)
 
@@ -139,7 +139,7 @@ One row per cross-tenant read observed when `tenant_isolation_strict=True`.
 
 ---
 
-## Pure helpers — `forge/main/tenancy/helpers.py`
+## Pure helpers — `forail/main/tenancy/helpers.py`
 
 Exported for standalone test; zero Django imports.
 
@@ -157,7 +157,7 @@ All four quota kinds use `check_quota_value` so the semantics are identical
 
 ---
 
-## Tenancy package layout — `forge/main/tenancy/`
+## Tenancy package layout — `forail/main/tenancy/`
 
 | Module            | Role                                                                      |
 | ----------------- | ------------------------------------------------------------------------- | ----- |
@@ -173,8 +173,8 @@ All four quota kinds use `check_quota_value` so the semantics are identical
 
 ## Launch hook order
 
-In `forge/api/views/job_templates.py`, `workflows.py`, and `ad_hoc_commands.py`,
-the launch sequence inside the `forge.launch` OTel span is:
+In `forail/api/views/job_templates.py`, `workflows.py`, and `ad_hoc_commands.py`,
+the launch sequence inside the `forail.launch` OTel span is:
 
 ```
 check_tenant_quota   (NEW — Tier 3.2)   — 429 on block
@@ -188,7 +188,7 @@ trace filtering.
 
 ### Job-finished signal
 
-`forge.main.signals.handlers` dispatches `on_job_finished(job)` on each
+`forail.main.signals.handlers` dispatches `on_job_finished(job)` on each
 `unified_job_finished` signal, which atomically decrements
 `concurrent_jobs_count` for the tenant. The Celery reconciliation task also
 corrects drift (`concurrent_jobs_count = actual running UnifiedJob count`)
@@ -196,7 +196,7 @@ on every tick.
 
 ---
 
-## Settings — `forge/main/conf.py`
+## Settings — `forail/main/conf.py`
 
 | Key                                   | Default | Notes                                          |
 | ------------------------------------- | ------- | ---------------------------------------------- |
@@ -243,7 +243,7 @@ is **public** (no auth classes).
   "branding": {
     "logo_url": "https://...",
     "primary_color": "#5B47E0",
-    "custom_domain": "acme.forge.example"
+    "custom_domain": "acme.forail.example"
   }
 }
 ```
@@ -309,13 +309,13 @@ With the stack running:
 
 ## Files
 
-- `forge/main/models/tenancy.py` — models
-- `forge/main/models/organization.py` — extended in place
-- `forge/main/migrations/0204_multi_tenancy.py` — schema migration
-- `forge/main/tenancy/` — helpers + quota + provisioning + branding + usage + isolation
-- `forge/main/tasks/tenancy.py` — Celery beat task
-- `forge/main/conf.py` — settings registration
-- `forge/api/serializers/tenancy.py`
-- `forge/api/views/tenancy.py`
-- `forge/api/urls/tenancy.py`
+- `forail/main/models/tenancy.py` — models
+- `forail/main/models/organization.py` — extended in place
+- `forail/main/migrations/0204_multi_tenancy.py` — schema migration
+- `forail/main/tenancy/` — helpers + quota + provisioning + branding + usage + isolation
+- `forail/main/tasks/tenancy.py` — Celery beat task
+- `forail/main/conf.py` — settings registration
+- `forail/api/serializers/tenancy.py`
+- `forail/api/views/tenancy.py`
+- `forail/api/urls/tenancy.py`
 - `tests_standalone/test_tenancy.py`

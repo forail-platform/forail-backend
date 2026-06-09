@@ -8,17 +8,17 @@ Overview of backend modules — what each part does, where to find things, and w
 
 | App             | Path             | Responsibility                                     |
 | --------------- | ---------------- | -------------------------------------------------- |
-| `forge.main`    | `forge/main/`    | Core: models, tasks, signals, migrations, commands |
-| `forge.api`     | `forge/api/`     | REST API: views, serializers, URL routing          |
-| `forge.conf`    | `forge/conf/`    | Database-backed settings system                    |
-| `forge.sso`     | `forge/sso/`     | SSO authentication (LDAP, SAML, social)            |
-| `forge.ui_next` | `forge/ui_next/` | React frontend (served through Django)             |
+| `forail.main`    | `forail/main/`    | Core: models, tasks, signals, migrations, commands |
+| `forail.api`     | `forail/api/`     | REST API: views, serializers, URL routing          |
+| `forail.conf`    | `forail/conf/`    | Database-backed settings system                    |
+| `forail.sso`     | `forail/sso/`     | SSO authentication (LDAP, SAML, social)            |
+| `forail.ui_next` | `forail/ui_next/` | React frontend (served through Django)             |
 
 ---
 
 ## Models — Where things live
 
-All models are in `forge/main/models/`. Each file covers one domain area:
+All models are in `forail/main/models/`. Each file covers one domain area:
 
 | File                        | Contents                                                                           | Note                                                                                                                                                                                                                                                                                                                                                             |
 | --------------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -42,9 +42,9 @@ All models are in `forge/main/models/`. Each file covers one domain area:
 | `service_catalog.py`        | ServiceCatalogItem, ServiceRequest                                                 | Self-Service Portal — curated catalog wrapping JT/WFJT, request lifecycle with optional approval (see `docs/17-self-service-portal.md`)                                                                                                                                                                                                                          |
 | `webauthn.py`               | WebAuthnCredential, WebAuthnRegistrationChallenge, WebAuthnAuthenticationChallenge | FIDO2 / WebAuthn — passwordless and second-factor authentication (see `docs/18-oidc-webauthn.md`)                                                                                                                                                                                                                                                                |
 | `policy.py`                 | Policy, PolicyDecision                                                             | Policy-as-Code (OPA) — Rego rules evaluated before every launch (see `docs/19-policy-as-code.md`)                                                                                                                                                                                                                                                                |
-| `scanner.py`                | Scanner, ScanResult, ScanFinding                                                   | IaC scanning & supply chain security — ansible-lint / checkov / pip-audit run before every launch (see `docs/20-iac-scanning.md`). Companion package: `forge/main/scanning/` (runner + tool adapters).                                                                                                                                                           |
-| `observability/`            | (package, no ORM models)                                                           | OpenTelemetry bootstrap + helpers + tracing seams + metric handles + collector health probe. Initialized from `forge/asgi.py` / `forge/wsgi.py` / Celery boot. See `docs/21-observability.md`.                                                                                                                                                                   |
-| `tenancy.py`                | TenantUsage, TenantQuotaEvent, TenantIsolationEvent                                | Multi-tenancy v1 — per-tenant quotas, branding, and cross-tenant audit layered on top of Organization. Companion package: `forge/main/tenancy/` (pure helpers, quota gate, provisioning, branding lookup, usage reconciliation, isolation middleware). Quota gate runs **before** Policy-as-Code and IaC Scanning at job launch. See `docs/22-multi-tenancy.md`. |
+| `scanner.py`                | Scanner, ScanResult, ScanFinding                                                   | IaC scanning & supply chain security — ansible-lint / checkov / pip-audit run before every launch (see `docs/20-iac-scanning.md`). Companion package: `forail/main/scanning/` (runner + tool adapters).                                                                                                                                                           |
+| `observability/`            | (package, no ORM models)                                                           | OpenTelemetry bootstrap + helpers + tracing seams + metric handles + collector health probe. Initialized from `forail/asgi.py` / `forail/wsgi.py` / Celery boot. See `docs/21-observability.md`.                                                                                                                                                                   |
+| `tenancy.py`                | TenantUsage, TenantQuotaEvent, TenantIsolationEvent                                | Multi-tenancy v1 — per-tenant quotas, branding, and cross-tenant audit layered on top of Organization. Companion package: `forail/main/tenancy/` (pure helpers, quota gate, provisioning, branding lookup, usage reconciliation, isolation middleware). Quota gate runs **before** Policy-as-Code and IaC Scanning at job launch. See `docs/22-multi-tenancy.md`. |
 | `rbac.py`                   | Role                                                                               | RBAC system — roles and permissions                                                                                                                                                                                                                                                                                                                              |
 | `oauth.py`                  | OAuth2Application, Token                                                           | API tokens                                                                                                                                                                                                                                                                                                                                                       |
 | `execution_environments.py` | ExecutionEnvironment                                                               | Container image reference for execution                                                                                                                                                                                                                                                                                                                          |
@@ -69,19 +69,19 @@ All models are in `forge/main/models/`. Each file covers one domain area:
 
 ## REST API — Structure
 
-The API is in `forge/api/` and follows DRF (Django REST Framework) conventions.
+The API is in `forail/api/` and follows DRF (Django REST Framework) conventions.
 
 ### File locations
 
 | What you're looking for             | Where to find it                                         |
 | ----------------------------------- | -------------------------------------------------------- |
-| API endpoints (URL routing)         | `forge/api/urls/` — one file per resource                |
-| View logic (what the endpoint does) | `forge/api/views/` — one file per resource               |
-| Serialization (JSON ↔ Model)        | `forge/api/serializers/` — data transformation           |
-| Permissions                         | `forge/api/permissions.py` — access checks               |
-| Authentication                      | `forge/api/authentication.py` — session, token, basic    |
-| Pagination                          | `forge/api/pagination.py` — default 25 per page          |
-| Filtering                           | `forge/api/filters.py` — search, ordering, field filters |
+| API endpoints (URL routing)         | `forail/api/urls/` — one file per resource                |
+| View logic (what the endpoint does) | `forail/api/views/` — one file per resource               |
+| Serialization (JSON ↔ Model)        | `forail/api/serializers/` — data transformation           |
+| Permissions                         | `forail/api/permissions.py` — access checks               |
+| Authentication                      | `forail/api/authentication.py` — session, token, basic    |
+| Pagination                          | `forail/api/pagination.py` — default 25 per page          |
+| Filtering                           | `forail/api/filters.py` — search, ordering, field filters |
 
 ### API conventions
 
@@ -111,7 +111,7 @@ The API is in `forge/api/` and follows DRF (Django REST Framework) conventions.
 
 ## Signals — Automatic side-effect actions
 
-Signals are in `forge/main/signals.py` and automatically react to database changes:
+Signals are in `forail/main/signals.py` and automatically react to database changes:
 
 | Signal                  | What it does                               |
 | ----------------------- | ------------------------------------------ |
@@ -129,38 +129,38 @@ check if a signal is attempting something invalid.
 
 ## Management Commands
 
-Commands are in `forge/main/management/commands/`. They are run with `forge-manage`
+Commands are in `forail/main/management/commands/`. They are run with `forail-manage`
 (or `awx-manage` — both work, backward compatibility).
 
 ### Most important commands
 
 **Instance management:**
 
-- `forge-manage provision_instance --hostname=node1` — register a new cluster node
-- `forge-manage deprovision_instance --hostname=node1` — remove a node
-- `forge-manage list_instances` — show all nodes with capacity
+- `forail-manage provision_instance --hostname=node1` — register a new cluster node
+- `forail-manage deprovision_instance --hostname=node1` — remove a node
+- `forail-manage list_instances` — show all nodes with capacity
 
 **Users:**
 
-- `forge-manage createsuperuser` — create admin user
-- `forge-manage update_password --username=admin --password=new` — reset password
+- `forail-manage createsuperuser` — create admin user
+- `forail-manage update_password --username=admin --password=new` — reset password
 
 **Database:**
 
-- `forge-manage migrate` — apply migrations
-- `forge-manage check_db` — verify database connectivity
-- `forge-manage dbshell` — open PostgreSQL shell
+- `forail-manage migrate` — apply migrations
+- `forail-manage check_db` — verify database connectivity
+- `forail-manage dbshell` — open PostgreSQL shell
 
 **Cleanup (run periodically):**
 
-- `forge-manage cleanup_jobs --days=90` — delete old jobs and events
-- `forge-manage cleanup_sessions` — delete expired sessions
-- `forge-manage cleanup_tokens` — delete expired OAuth tokens
+- `forail-manage cleanup_jobs --days=90` — delete old jobs and events
+- `forail-manage cleanup_sessions` — delete expired sessions
+- `forail-manage cleanup_tokens` — delete expired OAuth tokens
 
 **Diagnostics:**
 
-- `forge-manage check_instance_ready` — is the node ready for work
-- `forge-manage stats` — system statistics
+- `forail-manage check_instance_ready` — is the node ready for work
+- `forail-manage stats` — system statistics
 
 ### Watch out
 
@@ -180,42 +180,42 @@ Loaded at startup, cannot be changed without restart.
 
 | File                                      | Contents                                        |
 | ----------------------------------------- | ----------------------------------------------- |
-| `forge/settings/defaults/base.py`         | Core: DATABASES, INSTALLED_APPS, REST_FRAMEWORK |
-| `forge/settings/defaults/auth.py`         | Authentication backends                         |
-| `forge/settings/defaults/jobs.py`         | Job execution defaults                          |
-| `forge/settings/defaults/celery_conf.py`  | Celery/Redis configuration                      |
-| `forge/settings/defaults/logging_conf.py` | Logging                                         |
-| `forge/settings/production.py`            | Production overrides (DEBUG=False)              |
+| `forail/settings/defaults/base.py`         | Core: DATABASES, INSTALLED_APPS, REST_FRAMEWORK |
+| `forail/settings/defaults/auth.py`         | Authentication backends                         |
+| `forail/settings/defaults/jobs.py`         | Job execution defaults                          |
+| `forail/settings/defaults/celery_conf.py`  | Celery/Redis configuration                      |
+| `forail/settings/defaults/logging_conf.py` | Logging                                         |
+| `forail/settings/production.py`            | Production overrides (DEBUG=False)              |
 | `/etc/tower/conf.d/*.py`                  | Per-module settings inside the container        |
 
-### Level 2: Database-backed (Forge conf system)
+### Level 2: Database-backed (Forail conf system)
 
 Stored in PostgreSQL, changed via API (`/api/v2/settings/`) **without restart**.
 
-Registered in `forge/conf/` and covering: job timeouts, LDAP configuration,
+Registered in `forail/conf/` and covering: job timeouts, LDAP configuration,
 logging, notifications, and much more.
 
 **Watch out:** Database settings **override** file settings. If something isn't
 working as expected, check if it's been overridden in the database:
 
 ```bash
-forge-manage print_setting SETTING_NAME
+forail-manage print_setting SETTING_NAME
 ```
 
 ---
 
 ## Migrations
 
-Forge has **252 Django migrations** in `forge/main/migrations/`.
+Forail has **252 Django migrations** in `forail/main/migrations/`.
 
 ### Watch out
 
-- All migrations reference `forge.main.fields` — not `awx.main.fields`. If you
+- All migrations reference `forail.main.fields` — not `awx.main.fields`. If you
   create a new migration, `makemigrations` will automatically use the correct prefix.
 
 - **Never edit existing migrations** — only add new ones.
 
-- If a migration fails, check `forge-manage showmigrations | grep "\[ \]"`
+- If a migration fails, check `forail-manage showmigrations | grep "\[ \]"`
   to see which ones are unapplied.
 
 - The init script automatically runs `migrate` during deployment.

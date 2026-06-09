@@ -24,7 +24,7 @@ import re
 import unittest
 
 MIGRATIONS_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), '..', 'forge', 'main', 'migrations')
+    os.path.join(os.path.dirname(__file__), '..', 'forail', 'main', 'migrations')
 )
 
 

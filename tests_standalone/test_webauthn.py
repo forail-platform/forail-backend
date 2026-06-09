@@ -57,15 +57,15 @@ _models.CASCADE = 'CASCADE'
 _models.SET_NULL = 'SET_NULL'
 
 
-# Stub forge api/models base imports
-_ensure('forge')
-_ensure('forge.api')
-_ensure('forge.api.versioning')
-sys.modules['forge.api.versioning'].reverse = lambda *a, **kw: ''
+# Stub forail api/models base imports
+_ensure('forail')
+_ensure('forail.api')
+_ensure('forail.api.versioning')
+sys.modules['forail.api.versioning'].reverse = lambda *a, **kw: ''
 
-_ensure('forge.main')
-_ensure('forge.main.models')
-_base = _ensure('forge.main.models.base')
+_ensure('forail.main')
+_ensure('forail.main.models')
+_base = _ensure('forail.main.models.base')
 
 
 class _CreatedModifiedModel:
@@ -83,7 +83,7 @@ _base.CreatedModifiedModel = _CreatedModifiedModel
 import importlib.util  # noqa: E402
 
 _path = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), '..', 'forge', 'main', 'models', 'webauthn.py')
+    os.path.join(os.path.dirname(__file__), '..', 'forail', 'main', 'models', 'webauthn.py')
 )
 spec = importlib.util.spec_from_file_location('webauthn_models', _path)
 mod = importlib.util.module_from_spec(spec)

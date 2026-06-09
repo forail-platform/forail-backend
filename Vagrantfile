@@ -26,7 +26,7 @@ Vagrant.configure("2") do |config|
 
   # Sync AWX source into VM
   config.vm.synced_folder ".", "/awx_devel", type: "rsync",
-    rsync__exclude: [".git/", "node_modules/", "forge/ui/build/", "forge/ui_next/build/", "*.pyc", "__pycache__/"]
+    rsync__exclude: [".git/", "node_modules/", "forail/ui/build/", "forail/ui_next/build/", "*.pyc", "__pycache__/"]
 
   config.vm.provision "shell", path: "tools/scripts/vagrant-provision.sh"
 end

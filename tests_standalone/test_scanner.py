@@ -58,14 +58,14 @@ _models.ForeignKey = _ForeignKey
 _models.CASCADE = 'CASCADE'
 _models.SET_NULL = 'SET_NULL'
 
-_ensure('forge')
-_ensure('forge.api')
-_ensure('forge.api.versioning')
-sys.modules['forge.api.versioning'].reverse = lambda *a, **kw: ''
+_ensure('forail')
+_ensure('forail.api')
+_ensure('forail.api.versioning')
+sys.modules['forail.api.versioning'].reverse = lambda *a, **kw: ''
 
-_ensure('forge.main')
-_ensure('forge.main.models')
-_base = _ensure('forge.main.models.base')
+_ensure('forail.main')
+_ensure('forail.main.models')
+_base = _ensure('forail.main.models.base')
 
 
 class _BaseModel:
@@ -92,8 +92,8 @@ _base.CreatedModifiedModel = _CreatedModifiedModel
 
 
 # Stub the scanning.types module the adapters import.
-_ensure('forge.main.scanning')
-_types_mod = _ensure('forge.main.scanning.types')
+_ensure('forail.main.scanning')
+_types_mod = _ensure('forail.main.scanning.types')
 
 
 @dataclass
@@ -124,7 +124,7 @@ def _load(mod_name, rel_path):
     return mod
 
 
-mod = _load('scanner_model', 'forge/main/models/scanner.py')
+mod = _load('scanner_model', 'forail/main/models/scanner.py')
 
 severity_at_or_above = mod.severity_at_or_above
 effective_enforcement = mod.effective_enforcement
@@ -137,10 +137,10 @@ STATUS_WARN = mod.STATUS_WARN
 STATUS_BLOCKED = mod.STATUS_BLOCKED
 
 ansible_lint_mod = _load(
-    'scanner_ansible_lint', 'forge/main/scanning/tools/ansible_lint.py',
+    'scanner_ansible_lint', 'forail/main/scanning/tools/ansible_lint.py',
 )
-checkov_mod = _load('scanner_checkov', 'forge/main/scanning/tools/checkov.py')
-pip_audit_mod = _load('scanner_pip_audit', 'forge/main/scanning/tools/pip_audit.py')
+checkov_mod = _load('scanner_checkov', 'forail/main/scanning/tools/checkov.py')
+pip_audit_mod = _load('scanner_pip_audit', 'forail/main/scanning/tools/pip_audit.py')
 
 
 # ---------------------------------------------------------------------------

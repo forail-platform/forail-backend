@@ -4,7 +4,7 @@ Standalone tests for Self-Service Portal lifecycle logic.
 These tests exercise the ServiceRequest state machine (submit / approve /
 reject / sync) using lightweight fakes that mimic the model surface, so we
 can run without spinning up Django. The same logic lives in
-forge/main/models/service_catalog.py.
+forail/main/models/service_catalog.py.
 """
 
 import sys
@@ -80,15 +80,15 @@ sys.modules['django.db.models.signals'].post_save = _Signal()
 sys.modules['django.dispatch'].receiver = lambda *a, **kw: (lambda f: f)
 
 
-# Stub forge.api.versioning.reverse and the base classes
-_ensure_module('forge')
-_ensure_module('forge.api')
-_ensure_module('forge.api.versioning')
-sys.modules['forge.api.versioning'].reverse = lambda *a, **kw: ''
+# Stub forail.api.versioning.reverse and the base classes
+_ensure_module('forail')
+_ensure_module('forail.api')
+_ensure_module('forail.api.versioning')
+sys.modules['forail.api.versioning'].reverse = lambda *a, **kw: ''
 
-_ensure_module('forge.main')
-_ensure_module('forge.main.models')
-_base = _ensure_module('forge.main.models.base')
+_ensure_module('forail.main')
+_ensure_module('forail.main.models')
+_base = _ensure_module('forail.main.models.base')
 
 
 class _CommonModelNameNotUnique:
@@ -109,8 +109,8 @@ _base.CreatedModifiedModel = _CreatedModifiedModel
 
 # We don't import the unified_jobs module, so the post_save handler's
 # isinstance check will gracefully short-circuit during these tests.
-_ensure_module('forge.main.models.unified_jobs')
-sys.modules['forge.main.models.unified_jobs'].UnifiedJob = type('UnifiedJob', (), {})
+_ensure_module('forail.main.models.unified_jobs')
+sys.modules['forail.main.models.unified_jobs'].UnifiedJob = type('UnifiedJob', (), {})
 
 
 # ---------------------------------------------------------------------------
@@ -120,7 +120,7 @@ sys.modules['forge.main.models.unified_jobs'].UnifiedJob = type('UnifiedJob', ()
 import importlib.util  # noqa: E402
 
 _path = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), '..', 'forge', 'main', 'models', 'service_catalog.py')
+    os.path.join(os.path.dirname(__file__), '..', 'forail', 'main', 'models', 'service_catalog.py')
 )
 spec = importlib.util.spec_from_file_location('service_catalog', _path)
 service_catalog = importlib.util.module_from_spec(spec)

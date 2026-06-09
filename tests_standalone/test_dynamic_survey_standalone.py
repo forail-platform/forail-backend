@@ -20,10 +20,10 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Re-import with fresh mocks
-if 'forge.main.services.dynamic_survey' in sys.modules:
-    del sys.modules['forge.main.services.dynamic_survey']
+if 'forail.main.services.dynamic_survey' in sys.modules:
+    del sys.modules['forail.main.services.dynamic_survey']
 
-from forge.main.services.dynamic_survey import (
+from forail.main.services.dynamic_survey import (
     validate_dynamic_choices_config,
     _resolve_api_endpoint,
     _resolve_jinja2,
@@ -110,7 +110,7 @@ class TestValidation:
 
 class TestApiEndpoint:
 
-    @patch('forge.main.services.dynamic_survey.requests')
+    @patch('forail.main.services.dynamic_survey.requests')
     def test_simple_list(self, mock_req):
         resp = MagicMock()
         resp.json.return_value = ['a', 'b', 'c']
@@ -120,7 +120,7 @@ class TestApiEndpoint:
         result = _resolve_api_endpoint({'url': 'https://example.com/list'})
         assert result == ['a', 'b', 'c']
 
-    @patch('forge.main.services.dynamic_survey.requests')
+    @patch('forail.main.services.dynamic_survey.requests')
     def test_json_path(self, mock_req):
         resp = MagicMock()
         resp.json.return_value = {'data': {'items': ['x', 'y']}}
@@ -130,7 +130,7 @@ class TestApiEndpoint:
         result = _resolve_api_endpoint({'url': 'https://example.com', 'json_path': 'data.items'})
         assert result == ['x', 'y']
 
-    @patch('forge.main.services.dynamic_survey.requests')
+    @patch('forail.main.services.dynamic_survey.requests')
     def test_value_field(self, mock_req):
         resp = MagicMock()
         resp.json.return_value = [{'name': 'srv1'}, {'name': 'srv2'}]
@@ -140,7 +140,7 @@ class TestApiEndpoint:
         result = _resolve_api_endpoint({'url': 'https://example.com', 'value_field': 'name'})
         assert result == ['srv1', 'srv2']
 
-    @patch('forge.main.services.dynamic_survey.requests')
+    @patch('forail.main.services.dynamic_survey.requests')
     def test_post_method(self, mock_req):
         resp = MagicMock()
         resp.json.return_value = ['p1', 'p2']
@@ -154,12 +154,12 @@ class TestApiEndpoint:
     def test_empty_url(self):
         assert _resolve_api_endpoint({'url': ''}) == []
 
-    @patch('forge.main.services.dynamic_survey.requests')
+    @patch('forail.main.services.dynamic_survey.requests')
     def test_error_returns_empty(self, mock_req):
         mock_req.get.side_effect = Exception("fail")
         assert _resolve_api_endpoint({'url': 'https://bad.example.com'}) == []
 
-    @patch('forge.main.services.dynamic_survey.requests')
+    @patch('forail.main.services.dynamic_survey.requests')
     def test_non_list_response(self, mock_req):
         resp = MagicMock()
         resp.json.return_value = {"not": "a list"}
@@ -201,7 +201,7 @@ class TestDbQuery:
     def test_invalid_field(self):
         assert _resolve_db_query({'model': 'hosts', 'field': 'password'}) == []
 
-    @patch('forge.main.services.dynamic_survey.apps')
+    @patch('forail.main.services.dynamic_survey.apps')
     def test_valid_query(self, mock_apps):
         mock_qs = MagicMock()
         mock_qs.filter.return_value.values_list.return_value.distinct.return_value.order_by.return_value.__getitem__ = MagicMock(
@@ -214,7 +214,7 @@ class TestDbQuery:
         result = _resolve_db_query({'model': 'hosts', 'field': 'name', 'filter': {'inventory__id': 1}})
         assert result == ['h1', 'h2']
 
-    @patch('forge.main.services.dynamic_survey.apps')
+    @patch('forail.main.services.dynamic_survey.apps')
     def test_auto_inventory_filter(self, mock_apps):
         mock_qs = MagicMock()
         mock_qs.filter.return_value.values_list.return_value.distinct.return_value.order_by.return_value.__getitem__ = MagicMock(
@@ -238,17 +238,17 @@ class TestDbQuery:
 
 class TestResolveDynamicChoices:
 
-    @patch('forge.main.services.dynamic_survey.cache')
+    @patch('forail.main.services.dynamic_survey.cache')
     def test_disabled_returns_none(self, mock_cache):
         q = {'variable': 'v', 'dynamic_choices': {'enabled': False}}
         assert resolve_dynamic_choices(q) is None
 
-    @patch('forge.main.services.dynamic_survey.cache')
+    @patch('forail.main.services.dynamic_survey.cache')
     def test_no_dc_returns_none(self, mock_cache):
         assert resolve_dynamic_choices({'variable': 'v'}) is None
 
-    @patch('forge.main.services.dynamic_survey.cache')
-    @patch('forge.main.services.dynamic_survey._resolve_db_query')
+    @patch('forail.main.services.dynamic_survey.cache')
+    @patch('forail.main.services.dynamic_survey._resolve_db_query')
     def test_cache_hit(self, mock_resolve, mock_cache):
         mock_cache.get.return_value = ['c1', 'c2']
         q = {'variable': 'v', 'dynamic_choices': {'enabled': True, 'source_type': 'db_query', 'model': 'hosts', 'cache_ttl': 60}}
@@ -256,8 +256,8 @@ class TestResolveDynamicChoices:
         assert result == ['c1', 'c2']
         mock_resolve.assert_not_called()
 
-    @patch('forge.main.services.dynamic_survey.cache')
-    @patch('forge.main.services.dynamic_survey._resolve_db_query')
+    @patch('forail.main.services.dynamic_survey.cache')
+    @patch('forail.main.services.dynamic_survey._resolve_db_query')
     def test_cache_miss(self, mock_resolve, mock_cache):
         mock_cache.get.return_value = None
         mock_resolve.return_value = ['h1', 'h2']
@@ -268,8 +268,8 @@ class TestResolveDynamicChoices:
         # Verify TTL is passed
         assert mock_cache.set.call_args[1]['timeout'] == 120
 
-    @patch('forge.main.services.dynamic_survey.cache')
-    @patch('forge.main.services.dynamic_survey._resolve_api_endpoint')
+    @patch('forail.main.services.dynamic_survey.cache')
+    @patch('forail.main.services.dynamic_survey._resolve_api_endpoint')
     def test_api_source(self, mock_resolve, mock_cache):
         mock_cache.get.return_value = None
         mock_resolve.return_value = ['a1', 'a2']
@@ -277,8 +277,8 @@ class TestResolveDynamicChoices:
         result = resolve_dynamic_choices(q)
         assert result == ['a1', 'a2']
 
-    @patch('forge.main.services.dynamic_survey.cache')
-    @patch('forge.main.services.dynamic_survey._resolve_jinja2')
+    @patch('forail.main.services.dynamic_survey.cache')
+    @patch('forail.main.services.dynamic_survey._resolve_jinja2')
     def test_jinja2_source(self, mock_resolve, mock_cache):
         mock_cache.get.return_value = None
         mock_resolve.return_value = ['j1', 'j2']
@@ -286,15 +286,15 @@ class TestResolveDynamicChoices:
         result = resolve_dynamic_choices(q)
         assert result == ['j1', 'j2']
 
-    @patch('forge.main.services.dynamic_survey.cache')
+    @patch('forail.main.services.dynamic_survey.cache')
     def test_unknown_source_returns_empty(self, mock_cache):
         mock_cache.get.return_value = None
         q = {'variable': 'v', 'dynamic_choices': {'enabled': True, 'source_type': 'unknown', 'cache_ttl': 0}}
         result = resolve_dynamic_choices(q)
         assert result == []
 
-    @patch('forge.main.services.dynamic_survey.cache')
-    @patch('forge.main.services.dynamic_survey._resolve_db_query')
+    @patch('forail.main.services.dynamic_survey.cache')
+    @patch('forail.main.services.dynamic_survey._resolve_db_query')
     def test_results_are_stringified(self, mock_resolve, mock_cache):
         mock_cache.get.return_value = None
         mock_resolve.return_value = [1, 2.5, True]

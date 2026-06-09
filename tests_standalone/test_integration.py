@@ -3,7 +3,7 @@ Integration test for dynamic surveys.
 Runs with real Django LocMem cache (no database needed).
 """
 import os
-os.environ["DJANGO_SETTINGS_MODULE"] = "forge.settings.development"
+os.environ["DJANGO_SETTINGS_MODULE"] = "forail.settings.development"
 
 import django.conf
 django.conf.settings.configure(
@@ -13,7 +13,7 @@ django.conf.settings.configure(
     SECRET_KEY="test-secret-key",
 )
 
-from forge.main.services.dynamic_survey import (
+from forail.main.services.dynamic_survey import (
     validate_dynamic_choices_config,
     resolve_dynamic_choices,
 )

@@ -35,7 +35,7 @@ We will credit you in the release notes unless you prefer to remain anonymous.
 
 In scope:
 
-- forge-backend (this repository)
+- forail-backend (this repository)
 - Authentication, authorization, RBAC
 - Task execution and Receptor mesh
 - API endpoints and WebSocket channels

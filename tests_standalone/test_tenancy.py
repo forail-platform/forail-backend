@@ -1,6 +1,6 @@
 """Standalone tests for Multi-Tenancy v1 pure helpers.
 
-Loads forge/main/tenancy/helpers.py directly via importlib — no Django.
+Loads forail/main/tenancy/helpers.py directly via importlib — no Django.
 """
 
 import os
@@ -19,7 +19,7 @@ def _load(mod_name, rel_path):
     return mod
 
 
-helpers = _load('tenancy_helpers', 'forge/main/tenancy/helpers.py')
+helpers = _load('tenancy_helpers', 'forail/main/tenancy/helpers.py')
 
 check_quota_value = helpers.check_quota_value
 is_window_expired = helpers.is_window_expired

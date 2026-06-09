@@ -54,14 +54,14 @@ _models.ForeignKey = _ForeignKey
 _models.CASCADE = 'CASCADE'
 _models.SET_NULL = 'SET_NULL'
 
-_ensure('forge')
-_ensure('forge.api')
-_ensure('forge.api.versioning')
-sys.modules['forge.api.versioning'].reverse = lambda *a, **kw: ''
+_ensure('forail')
+_ensure('forail.api')
+_ensure('forail.api.versioning')
+sys.modules['forail.api.versioning'].reverse = lambda *a, **kw: ''
 
-_ensure('forge.main')
-_ensure('forge.main.models')
-_base = _ensure('forge.main.models.base')
+_ensure('forail.main')
+_ensure('forail.main.models')
+_base = _ensure('forail.main.models.base')
 
 
 class _CommonModelNameNotUnique:
@@ -88,7 +88,7 @@ _base.CreatedModifiedModel = _CreatedModifiedModel
 import importlib.util  # noqa: E402
 
 _path = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), '..', 'forge', 'main', 'models', 'policy.py')
+    os.path.join(os.path.dirname(__file__), '..', 'forail', 'main', 'models', 'policy.py')
 )
 spec = importlib.util.spec_from_file_location('policy_model', _path)
 mod = importlib.util.module_from_spec(spec)
@@ -106,7 +106,7 @@ ENFORCEMENT_ENFORCE = mod.ENFORCEMENT_ENFORCE
 # ---------------------------------------------------------------------------
 
 _opa_path = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), '..', 'forge', 'main', 'policy', 'opa_client.py')
+    os.path.join(os.path.dirname(__file__), '..', 'forail', 'main', 'policy', 'opa_client.py')
 )
 spec2 = importlib.util.spec_from_file_location('opa_client', _opa_path)
 opa_mod = importlib.util.module_from_spec(spec2)

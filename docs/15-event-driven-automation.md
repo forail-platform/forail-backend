@@ -1,8 +1,8 @@
 # Event-Driven Automation (EDA)
 
-Forge EDA enables webhook-based event routing with user-defined rules.
+Forail EDA enables webhook-based event routing with user-defined rules.
 When an external system sends a webhook (GitHub push, Alertmanager alert,
-PagerDuty incident, etc.), Forge evaluates conditions and automatically
+PagerDuty incident, etc.), Forail evaluates conditions and automatically
 launches job templates, workflows, or sends notifications.
 
 ---
@@ -24,7 +24,7 @@ External System ──POST──> /api/v2/eda_webhooks/<path>/
                                       └── Log results + AuditEvent
 ```
 
-Outbound webhooks work in reverse — when a job completes, Forge POSTs
+Outbound webhooks work in reverse — when a job completes, Forail POSTs
 a signed JSON payload to configured external URLs.
 
 ---
@@ -174,10 +174,10 @@ All conditions must match (AND logic). Empty conditions = always match.
 
 | Variable               | Content                  |
 | ---------------------- | ------------------------ |
-| `forge_eda_event_type` | Event type (e.g. `push`) |
-| `forge_eda_event_guid` | Unique event ID          |
-| `forge_eda_rule_name`  | Rule name that fired     |
-| `forge_eda_payload`    | Full webhook payload     |
+| `forail_eda_event_type` | Event type (e.g. `push`) |
+| `forail_eda_event_guid` | Unique event ID          |
+| `forail_eda_rule_name`  | Rule name that fired     |
+| `forail_eda_payload`    | Full webhook payload     |
 
 ---
 
@@ -187,11 +187,11 @@ All conditions must match (AND logic). Empty conditions = always match.
 | ----------------- | ------------------------ | ------------------------------------------ |
 | `webhook_github`  | HMAC-SHA256 or HMAC-SHA1 | `X-Hub-Signature-256` or `X-Hub-Signature` |
 | `webhook_gitlab`  | Token comparison         | `X-Gitlab-Token`                           |
-| `webhook_generic` | HMAC-SHA256              | `X-Forge-Signature`                        |
-| `alertmanager`    | HMAC-SHA256              | `X-Forge-Signature`                        |
-| Others            | HMAC-SHA256              | `X-Forge-Signature`                        |
+| `webhook_generic` | HMAC-SHA256              | `X-Forail-Signature`                        |
+| `alertmanager`    | HMAC-SHA256              | `X-Forail-Signature`                        |
+| Others            | HMAC-SHA256              | `X-Forail-Signature`                        |
 
-**X-Forge-Signature format:** `sha256=<hex_digest>`
+**X-Forail-Signature format:** `sha256=<hex_digest>`
 
 To sign a payload with the webhook key:
 
@@ -218,7 +218,7 @@ echo -n '{"event":"test"}' | openssl dgst -sha256 -hmac 'YOUR_WEBHOOK_KEY'
 ### 1. Create an Event Rule
 
 ```bash
-curl -X POST https://forge.example.com/api/v2/event_rules/ \
+curl -X POST https://forail.example.com/api/v2/event_rules/ \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -240,7 +240,7 @@ curl -X POST https://forge.example.com/api/v2/event_rules/ \
 From the response, note the `webhook_url` and retrieve the key:
 
 ```bash
-curl https://forge.example.com/api/v2/event_rules/1/webhook_key/ \
+curl https://forail.example.com/api/v2/event_rules/1/webhook_key/ \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -248,7 +248,7 @@ curl https://forge.example.com/api/v2/event_rules/1/webhook_key/ \
 
 In your GitHub repository Settings > Webhooks:
 
-- **Payload URL**: `https://forge.example.com/api/v2/eda_webhooks/github-deploy/`
+- **Payload URL**: `https://forail.example.com/api/v2/eda_webhooks/github-deploy/`
 - **Content type**: `application/json`
 - **Secret**: The webhook key from step 2
 - **Events**: Push events
@@ -256,7 +256,7 @@ In your GitHub repository Settings > Webhooks:
 ### 4. Test with dry-run
 
 ```bash
-curl -X POST https://forge.example.com/api/v2/event_rules/1/test/ \
+curl -X POST https://forail.example.com/api/v2/event_rules/1/test/ \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{

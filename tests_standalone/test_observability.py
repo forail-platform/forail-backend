@@ -1,7 +1,7 @@
 """Standalone unit tests for the observability pure helpers.
 
 These tests deliberately do NOT import ``opentelemetry`` or Django — they
-load ``forge/main/observability/helpers.py`` directly via importlib so they
+load ``forail/main/observability/helpers.py`` directly via importlib so they
 can run in any minimal environment.
 """
 
@@ -21,7 +21,7 @@ def _load(mod_name, rel_path):
     return mod
 
 
-helpers = _load('obs_helpers', 'forge/main/observability/helpers.py')
+helpers = _load('obs_helpers', 'forail/main/observability/helpers.py')
 
 parse_resource_attributes = helpers.parse_resource_attributes
 parse_endpoint = helpers.parse_endpoint

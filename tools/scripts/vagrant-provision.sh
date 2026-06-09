@@ -2,7 +2,7 @@
 set -euo pipefail
 
 echo "============================================"
-echo " Forge Build Environment - Ubuntu 24.04"
+echo " Forail Build Environment - Ubuntu 24.04"
 echo " Provisioning..."
 echo "============================================"
 
@@ -63,29 +63,29 @@ pip3 install --break-system-packages ansible docker 2>/dev/null || \
 echo "[5/5] Setting up workspace..."
 
 # Create projects dir
-mkdir -p /awx_devel/forge/projects
+mkdir -p /awx_devel/forail/projects
 
 # Link for convenience
-ln -sf /awx_devel /home/vagrant/forge
+ln -sf /awx_devel /home/vagrant/forail
 
 # Shell environment for vagrant user
 cat >> /home/vagrant/.bashrc << 'BASHRC'
 
-# Forge Development Environment
-export FORGE_DEVEL=/awx_devel
-alias forge-build='cd /awx_devel && make docker-compose-build'
-alias forge-start='cd /awx_devel && make docker-compose COMPOSE_UP_OPTS=-d'
-alias forge-stop='cd /awx_devel && make docker-compose-down'
-alias forge-logs='docker compose -f /awx_devel/tools/docker-compose/_sources/docker-compose.yml logs -f'
-alias forge-shell='docker exec -it tools_awx_1 bash'
-alias forge-test='cd /awx_devel && make docker-compose-runtest'
+# Forail Development Environment
+export FORAIL_DEVEL=/awx_devel
+alias forail-build='cd /awx_devel && make docker-compose-build'
+alias forail-start='cd /awx_devel && make docker-compose COMPOSE_UP_OPTS=-d'
+alias forail-stop='cd /awx_devel && make docker-compose-down'
+alias forail-logs='docker compose -f /awx_devel/tools/docker-compose/_sources/docker-compose.yml logs -f'
+alias forail-shell='docker exec -it tools_awx_1 bash'
+alias forail-test='cd /awx_devel && make docker-compose-runtest'
 BASHRC
 
 chown -R vagrant:vagrant /home/vagrant
 
 echo ""
 echo "============================================"
-echo " Forge Build Environment - Ready"
+echo " Forail Build Environment - Ready"
 echo "============================================"
 echo ""
 echo " Versions:"
@@ -98,15 +98,15 @@ echo ""
 echo " Quick start (run inside VM with 'vagrant ssh'):"
 echo "   1. cd /awx_devel"
 echo "   2. make docker-compose-build     # Build dev image"
-echo "   3. make docker-compose COMPOSE_UP_OPTS=-d  # Start Forge"
+echo "   3. make docker-compose COMPOSE_UP_OPTS=-d  # Start Forail"
 echo ""
 echo " Or use aliases:"
-echo "   forge-build   - Build Forge dev image"
-echo "   forge-start   - Start Forge containers"
-echo "   forge-stop    - Stop Forge containers"
-echo "   forge-logs    - Follow Forge logs"
-echo "   forge-shell   - Shell into Forge container"
-echo "   forge-test    - Run tests"
+echo "   forail-build   - Build Forail dev image"
+echo "   forail-start   - Start Forail containers"
+echo "   forail-stop    - Stop Forail containers"
+echo "   forail-logs    - Follow Forail logs"
+echo "   forail-shell   - Shell into Forail container"
+echo "   forail-test    - Run tests"
 echo ""
 echo " Access: https://192.168.56.20:8043"
 echo "============================================"

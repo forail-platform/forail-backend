@@ -13,23 +13,23 @@ Set in `tools/docker-compose-prod/.env`.
 | Variable                           | Description       | Generate with...            |
 | ---------------------------------- | ----------------- | --------------------------- |
 | `POSTGRES_PASSWORD`                | DB password       | `openssl rand -base64 24`   |
-| `FORGE_SECRET_KEY`                 | Django crypto key | `openssl rand -base64 32`   |
-| `FORGE_BROADCAST_WEBSOCKET_SECRET` | WS auth secret    | `openssl rand -base64 32`   |
-| `FORGE_ADMIN_PASSWORD`             | Admin password    | Manually — strong password  |
-| `FORGE_CSRF_TRUSTED_ORIGINS`       | CSRF origins      | `https://forge.example.com` |
+| `FORAIL_SECRET_KEY`                 | Django crypto key | `openssl rand -base64 32`   |
+| `FORAIL_BROADCAST_WEBSOCKET_SECRET` | WS auth secret    | `openssl rand -base64 32`   |
+| `FORAIL_ADMIN_PASSWORD`             | Admin password    | Manually — strong password  |
+| `FORAIL_CSRF_TRUSTED_ORIGINS`       | CSRF origins      | `https://forail.example.com` |
 
 ### Optional
 
 | Variable                | Default                | Description                        |
 | ----------------------- | ---------------------- | ---------------------------------- |
-| `FORGE_IMAGE`           | `forge-platform/forge` | Docker image                       |
-| `FORGE_TAG`             | `latest`               | Image tag                          |
-| `POSTGRES_USER`         | `forge`                | DB user                            |
-| `POSTGRES_DB`           | `forge`                | DB name                            |
-| `FORGE_ADMIN_USER`      | `admin`                | Admin username                     |
-| `FORGE_ALLOWED_HOSTS`   | `*`                    | Allowed HTTP hosts                 |
-| `FORGE_NODE_NAME`       | `forge-node`           | Cluster node name                  |
-| `FORGE_NODE_TYPE`       | `hybrid`               | `hybrid` / `control` / `execution` |
+| `FORAIL_IMAGE`           | `forail-platform/forail` | Docker image                       |
+| `FORAIL_TAG`             | `latest`               | Image tag                          |
+| `POSTGRES_USER`         | `forail`                | DB user                            |
+| `POSTGRES_DB`           | `forail`                | DB name                            |
+| `FORAIL_ADMIN_USER`      | `admin`                | Admin username                     |
+| `FORAIL_ALLOWED_HOSTS`   | `*`                    | Allowed HTTP hosts                 |
+| `FORAIL_NODE_NAME`       | `forail-node`           | Cluster node name                  |
+| `FORAIL_NODE_TYPE`       | `hybrid`               | `hybrid` / `control` / `execution` |
 | `NGINX_HTTP_PORT`       | `80`                   | HTTP port                          |
 | `NGINX_HTTPS_PORT`      | `443`                  | HTTPS port                         |
 | `SESSION_COOKIE_SECURE` | `True`                 | Cookie only over HTTPS             |
@@ -37,10 +37,10 @@ Set in `tools/docker-compose-prod/.env`.
 
 ### Watch out
 
-- **`FORGE_SECRET_KEY` — never change it** after deployment — it invalidates all sessions,
+- **`FORAIL_SECRET_KEY` — never change it** after deployment — it invalidates all sessions,
   tokens, and encrypted credentials.
 
-- **`FORGE_CSRF_TRUSTED_ORIGINS`** must be a **full URL with protocol**: `https://forge.example.com`.
+- **`FORAIL_CSRF_TRUSTED_ORIGINS`** must be a **full URL with protocol**: `https://forail.example.com`.
   Hostname only without `https://` won't work.
 
 - For **local development without HTTPS**, set `SESSION_COOKIE_SECURE=False` and `CSRF_COOKIE_SECURE=False`.
@@ -52,8 +52,8 @@ Set in `tools/docker-compose-prod/.env`.
 Loaded in order (later ones override earlier):
 
 ```
-1. forge/settings/defaults/*.py       ← Default values
-2. forge/settings/production.py       ← Production override (DEBUG=False)
+1. forail/settings/defaults/*.py       ← Default values
+2. forail/settings/production.py       ← Production override (DEBUG=False)
 3. /etc/tower/settings.py             ← Root settings in the container
 4. /etc/tower/conf.d/*.py             ← Per-module settings in the container
 5. Database settings                  ← Runtime override via API
@@ -119,7 +119,7 @@ Access via API: `/api/v2/settings/`
 curl -u admin:password -X PATCH \
   -H 'Content-Type: application/json' \
   -d '{"SESSION_COOKIE_AGE": 28800}' \
-  https://forge.example.com/api/v2/settings/authentication/
+  https://forail.example.com/api/v2/settings/authentication/
 ```
 
 ### Set global job timeout to 1 hour
@@ -128,7 +128,7 @@ curl -u admin:password -X PATCH \
 curl -u admin:password -X PATCH \
   -H 'Content-Type: application/json' \
   -d '{"DEFAULT_JOB_TIMEOUT": 3600}' \
-  https://forge.example.com/api/v2/settings/jobs/
+  https://forail.example.com/api/v2/settings/jobs/
 ```
 
 ### Add proxy for all jobs
@@ -137,7 +137,7 @@ curl -u admin:password -X PATCH \
 curl -u admin:password -X PATCH \
   -H 'Content-Type: application/json' \
   -d '{"AWX_TASK_ENV": {"HTTP_PROXY": "http://proxy:3128", "HTTPS_PROXY": "http://proxy:3128"}}' \
-  https://forge.example.com/api/v2/settings/jobs/
+  https://forail.example.com/api/v2/settings/jobs/
 ```
 
 ### Disable Basic Auth (more secure)
@@ -146,7 +146,7 @@ curl -u admin:password -X PATCH \
 curl -u admin:password -X PATCH \
   -H 'Content-Type: application/json' \
   -d '{"AUTH_BASIC_ENABLED": false}' \
-  https://forge.example.com/api/v2/settings/authentication/
+  https://forail.example.com/api/v2/settings/authentication/
 ```
 
 ### Send logs to Splunk
@@ -160,7 +160,7 @@ curl -u admin:password -X PATCH \
     "LOG_AGGREGATOR_TYPE": "splunk",
     "LOG_AGGREGATOR_ENABLED": true
   }' \
-  https://forge.example.com/api/v2/settings/logging/
+  https://forail.example.com/api/v2/settings/logging/
 ```
 
 ### Configure LDAP
@@ -170,14 +170,14 @@ curl -u admin:password -X PATCH \
   -H 'Content-Type: application/json' \
   -d '{
     "AUTH_LDAP_SERVER_URI": "ldaps://ldap.example.com:636",
-    "AUTH_LDAP_BIND_DN": "cn=forge,ou=services,dc=example,dc=com",
+    "AUTH_LDAP_BIND_DN": "cn=forail,ou=services,dc=example,dc=com",
     "AUTH_LDAP_BIND_PASSWORD": "LDAPPassword",
     "AUTH_LDAP_USER_SEARCH": ["ou=users,dc=example,dc=com", "SCOPE_SUBTREE", "(uid=%(user)s)"],
     "AUTH_LDAP_ORGANIZATION_MAP": {
       "Default": {"users": true, "remove_users": false}
     }
   }' \
-  https://forge.example.com/api/v2/settings/ldap/
+  https://forail.example.com/api/v2/settings/ldap/
 ```
 
 ---

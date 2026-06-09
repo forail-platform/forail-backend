@@ -180,7 +180,7 @@ GET    /api/v2/hosts/{id}/drift/                        # All drift for a specif
 ## Alert Rule — Create Example
 
 ```bash
-curl -X POST https://forge.example.com/api/v2/drift_alert_rules/ \
+curl -X POST https://forail.example.com/api/v2/drift_alert_rules/ \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -202,7 +202,7 @@ curl -X POST https://forge.example.com/api/v2/drift_alert_rules/ \
 ```bash
 # Export all drift for an inventory in the last 30 days
 curl -H "Authorization: Bearer <token>" \
-  "https://forge.example.com/api/v2/drift_detections/export/?inventory=3&date_from=2026-03-01" \
+  "https://forail.example.com/api/v2/drift_detections/export/?inventory=3&date_from=2026-03-01" \
   -o drift_report.csv
 ```
 
@@ -217,7 +217,7 @@ Periodic task `cleanup_old_snapshots` runs as a Celery beat task:
 
 - Default retention: 90 days
 - Always keeps at least 2 snapshots per host
-- Run manually: `forge-manage shell -c "from forge.main.tasks.drift import cleanup_old_snapshots; cleanup_old_snapshots()"`
+- Run manually: `forail-manage shell -c "from forail.main.tasks.drift import cleanup_old_snapshots; cleanup_old_snapshots()"`
 
 ---
 

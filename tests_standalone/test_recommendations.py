@@ -2,8 +2,8 @@
 
 These tests do NOT import Django. They load ``types.py`` and ``rules.py``
 directly, then load the pure ``evaluate`` helper from ``engine.py`` by
-pre-stubbing ``forge.main.recommendations.types`` and
-``forge.main.recommendations.rules`` in ``sys.modules``.
+pre-stubbing ``forail.main.recommendations.types`` and
+``forail.main.recommendations.rules`` in ``sys.modules``.
 """
 
 import os
@@ -24,15 +24,15 @@ def _load_as(mod_name, rel_path):
 
 
 # Create package shells so relative imports in rules.py / engine.py resolve.
-for pkg in ('forge', 'forge.main', 'forge.main.recommendations'):
+for pkg in ('forail', 'forail.main', 'forail.main.recommendations'):
     if pkg not in sys.modules:
         m = _pytypes.ModuleType(pkg)
         m.__path__ = []  # mark as package
         sys.modules[pkg] = m
 
-rec_types = _load_as('forge.main.recommendations.types', 'forge/main/recommendations/types.py')
-rec_rules = _load_as('forge.main.recommendations.rules', 'forge/main/recommendations/rules.py')
-rec_engine = _load_as('forge.main.recommendations.engine', 'forge/main/recommendations/engine.py')
+rec_types = _load_as('forail.main.recommendations.types', 'forail/main/recommendations/types.py')
+rec_rules = _load_as('forail.main.recommendations.rules', 'forail/main/recommendations/rules.py')
+rec_engine = _load_as('forail.main.recommendations.engine', 'forail/main/recommendations/engine.py')
 
 Recommendation = rec_types.Recommendation
 RuleContext = rec_types.RuleContext

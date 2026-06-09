@@ -13,7 +13,7 @@ surveys resolve choices from three configurable sources:
 
 | Source              | Description                                        | Use Case                            |
 | ------------------- | -------------------------------------------------- | ----------------------------------- |
-| **Database Query**  | Query Forge models (hosts, groups, projects, etc.) | Select a host from inventory        |
+| **Database Query**  | Query Forail models (hosts, groups, projects, etc.) | Select a host from inventory        |
 | **External API**    | Fetch choices from an HTTP endpoint                | Options from CMDB, ServiceNow, etc. |
 | **Jinja2 Template** | Evaluate a Jinja2 expression                       | Custom logic using inventory data   |
 
@@ -67,7 +67,7 @@ A survey question with dynamic choices includes a `dynamic_choices` field:
 
 ## Source: Database Query
 
-Query Forge database models and return a field value as choices.
+Query Forail database models and return a field value as choices.
 
 ```json
 {

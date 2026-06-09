@@ -4,6 +4,6 @@
 # All Rights Reserved.
 
 if __name__ == '__main__':
-    from forge import manage
+    from forail import manage
 
     manage()

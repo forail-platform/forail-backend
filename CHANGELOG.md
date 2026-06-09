@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to the Forge Backend will be documented in this file.
+All notable changes to the Forail Backend will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to CalVer (`YYYY.MM.PATCH`).
@@ -16,7 +16,7 @@ and the project adheres to CalVer (`YYYY.MM.PATCH`).
   `PrimordialModel`, so any ORM query that joined the audit columns
   blew up with `psycopg.UndefinedColumn`. Symptom in the wild was
   `DELETE /api/v2/organizations/{id}/` returning HTTP 500 and the
-  forge-operator finalizer hanging. Migration `0208` backfills both
+  forail-operator finalizer hanging. Migration `0208` backfills both
   columns nullable + SET_NULL; a schema-level regression test in
   `tests_standalone/test_drift_audit_fields_schema.py` keeps the
   same gap from re-opening.
@@ -33,8 +33,8 @@ and the project adheres to CalVer (`YYYY.MM.PATCH`).
 - Assistant API surface for the Ollama+RAG chat sidecar
 
 ### Changed
-- Renamed all `awx-*` references to `forge-*` in user-facing strings,
-  CLI commands (`forge-manage`), Django app labels, and docs
+- Renamed all `awx-*` references to `forail-*` in user-facing strings,
+  CLI commands (`forail-manage`), Django app labels, and docs
 - Cleaned up legacy AWX docs and updated README links
 
 ### Fixed

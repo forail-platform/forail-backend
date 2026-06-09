@@ -1,6 +1,6 @@
 # 14 — Improved Audit Trail
 
-Forge provides two complementary audit mechanisms:
+Forail provides two complementary audit mechanisms:
 
 1. **Activity Stream** — existing change log (create/update/delete/associate), now enhanced with IP, User-Agent, and session tracking
 2. **Audit Events** — new immutable, append-only security audit log for compliance-grade auditing
@@ -128,7 +128,7 @@ GET /api/v2/audit_events/?format=siem
 Returns flat JSON optimized for SIEM ingestion (Splunk, ELK, Datadog):
 
 - `detail` dict fields are flattened with `detail_` prefix
-- `source: "forge"` and `event_type: "<category>.<action>"` are added
+- `source: "forail"` and `event_type: "<category>.<action>"` are added
 - No nested objects — every field is at the top level
 
 ### Detail
@@ -169,17 +169,17 @@ automatically logged as an audit event:
 }
 ```
 
-This logging happens in `forge/main/signals.py` in the `activity_stream_create`
+This logging happens in `forail/main/signals.py` in the `activity_stream_create`
 handler when a `Job` instance is created.
 
 ---
 
 ## Utility Functions
 
-Located in `forge/main/utils/audit.py`:
+Located in `forail/main/utils/audit.py`:
 
 ```python
-from forge.main.utils.audit import log_credential_access, log_auth_event, log_permission_change
+from forail.main.utils.audit import log_credential_access, log_auth_event, log_permission_change
 
 # Log credential usage
 log_credential_access(credential, job=job, actor=user)
@@ -201,7 +201,7 @@ cause the calling operation to fail.
 
 ## Middleware
 
-`RequestContextMiddleware` in `forge/main/middleware.py`:
+`RequestContextMiddleware` in `forail/main/middleware.py`:
 
 - Extracts IP (from `X-Forwarded-For` or `REMOTE_ADDR`), User-Agent, and session ID
 - Stores in thread-local storage for signal handlers to read
@@ -212,7 +212,7 @@ cause the calling operation to fail.
 
 ## Frontend
 
-The Audit Log page is available at `/audit` in the Forge UI:
+The Audit Log page is available at `/audit` in the Forail UI:
 
 - **Filters**: category, severity, username, resource type
 - **Expandable rows**: click to see IP, user agent, session ID, node, detail JSON

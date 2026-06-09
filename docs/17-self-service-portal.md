@@ -56,7 +56,7 @@ Node Surveys feature).
 
 ## Models
 
-`forge/main/models/service_catalog.py`
+`forail/main/models/service_catalog.py`
 
 ### `ServiceCatalogItem(CommonModelNameNotUnique)`
 
@@ -113,7 +113,7 @@ A module-level `post_save` receiver in `service_catalog.py` listens for any
 
 ## Permissions & registration
 
-`forge/main/models/__init__.py`:
+`forail/main/models/__init__.py`:
 
 - `permission_registry.register(..., ServiceCatalogItem)` — org-scoped RBAC
 - `activity_stream_registrar.connect(ServiceCatalogItem)`

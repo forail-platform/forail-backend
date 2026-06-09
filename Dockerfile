@@ -1,5 +1,5 @@
-### Forge Backend — Production Dockerfile (Ubuntu 24.04)
-### Headless build — frontend is served separately via forge-frontend image
+### Forail Backend — Production Dockerfile (Ubuntu 24.04)
+### Headless build — frontend is served separately via forail-frontend image
 
 # ── Stage 1: Build Python backend ──────────────────────────────────
 FROM ubuntu:24.04 AS builder
@@ -66,19 +66,19 @@ COPY . /tmp/src/
 WORKDIR /tmp/src/
 
 RUN HEADLESS=yes make sdist && \
-    rm -f dist/forge.tar.gz && \
-    /var/lib/awx/venv/awx/bin/pip install dist/forge-*.tar.gz
+    rm -f dist/forail.tar.gz && \
+    /var/lib/awx/venv/awx/bin/pip install dist/forail-*.tar.gz
 
 # SSL cert compatibility for certifi/requests
 RUN mkdir -p /etc/pki/tls/certs && \
     ln -sf /etc/ssl/certs/ca-certificates.crt /etc/pki/tls/certs/ca-bundle.crt
 
 # Collect static files (Django admin, DRF, etc.)
-RUN DJANGO_SETTINGS_MODULE=forge.settings.defaults \
+RUN DJANGO_SETTINGS_MODULE=forail.settings.defaults \
     SKIP_SECRET_KEY_CHECK=yes \
     SKIP_PG_VERSION_CHECK=yes \
     AWX_LOGGING_MODE=stdout \
-    /var/lib/awx/venv/awx/bin/forge-manage collectstatic --noinput --clear
+    /var/lib/awx/venv/awx/bin/forail-manage collectstatic --noinput --clear
 
 # ── Stage 2: Final runtime image ──────────────────────────────────
 FROM ubuntu:24.04
@@ -130,10 +130,10 @@ RUN mkdir -p /etc/pki/tls/certs && \
 RUN rm -rf /root/.cache && rm -rf /tmp/*
 
 # ── podman for Execution Environment process isolation ─────────────
-# AWX/forge runs project updates and job templates inside EE containers
+# AWX/forail runs project updates and job templates inside EE containers
 # via ansible-runner, which hardcodes process_isolation_executable=podman.
 # This installs podman and configures fuse-overlay storage so it works
-# when the forge-task container itself runs in privileged mode under
+# when the forail-task container itself runs in privileged mode under
 # Docker. Pattern mirrored from tools/ansible/roles/dockerfile/templates/
 # Dockerfile.ubuntu.j2 (upstream AWX dev build).
 RUN apt-get update && apt-get install -y podman fuse-overlayfs uidmap && \
@@ -162,17 +162,17 @@ RUN mkdir -p /etc/containers/registries.conf.d/ && \
 COPY --from=builder /var/lib/awx /var/lib/awx
 
 # IaC scanning & supply chain security CLIs (Tier 3.4)
-# Installed into the forge venv so Django subprocess calls find them on PATH.
+# Installed into the forail venv so Django subprocess calls find them on PATH.
 RUN /var/lib/awx/venv/awx/bin/pip install --no-cache-dir \
         'ansible-lint==25.1.*' \
         'checkov==3.2.*' \
         'pip-audit==2.7.*'
 
-# Remove devonly module so forge detects production mode
-RUN rm -f /var/lib/awx/venv/awx/lib/python3.12/site-packages/forge/devonly.py \
-          /var/lib/awx/venv/awx/lib/python3.12/site-packages/forge/devonly.pyc
+# Remove devonly module so forail detects production mode
+RUN rm -f /var/lib/awx/venv/awx/lib/python3.12/site-packages/forail/devonly.py \
+          /var/lib/awx/venv/awx/lib/python3.12/site-packages/forail/devonly.pyc
 
-RUN ln -s /var/lib/awx/venv/awx/bin/forge-manage /usr/bin/forge-manage && \
+RUN ln -s /var/lib/awx/venv/awx/bin/forail-manage /usr/bin/forail-manage && \
     ln -s /var/lib/awx/venv/awx/bin/awx-manage /usr/bin/awx-manage
 
 COPY --from=quay.io/ansible/receptor:devel /usr/bin/receptor /usr/bin/receptor
@@ -190,8 +190,8 @@ ADD tools/scripts/rsyslog-4xx-recovery /usr/bin/rsyslog-4xx-recovery
 ADD _build/supervisor_web.conf /etc/supervisord_web.conf
 ADD _build/supervisor_task.conf /etc/supervisord_task.conf
 ADD _build/supervisor_rsyslog.conf /etc/supervisord_rsyslog.conf
-ADD tools/scripts/forge-python /usr/bin/forge-python
-RUN ln -s /usr/bin/forge-python /usr/bin/awx-python
+ADD tools/scripts/forail-python /usr/bin/forail-python
+RUN ln -s /usr/bin/forail-python /usr/bin/awx-python
 
 # Pre-create directories
 RUN for dir in \

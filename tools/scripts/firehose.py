@@ -1,4 +1,4 @@
-#! /usr/bin/env forge-python
+#! /usr/bin/env forail-python
 
 #
 # !!! READ BEFORE POINTING THIS AT YOUR FOOT !!!

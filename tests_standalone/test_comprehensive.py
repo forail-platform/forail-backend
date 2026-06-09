@@ -1,5 +1,5 @@
 """
-Comprehensive standalone tests for Forge Platform.
+Comprehensive standalone tests for Forail Platform.
 
 Covers modules NOT tested by other standalone tests:
   - SimpleDAG: graph operations, cycle detection, topological sort
@@ -42,7 +42,7 @@ def _load_module(mod_name, rel_path):
 # 1. SimpleDAG tests
 # ---------------------------------------------------------------------------
 
-dag_module = _load_module('dag_simple', 'forge/main/scheduler/dag_simple.py')
+dag_module = _load_module('dag_simple', 'forail/main/scheduler/dag_simple.py')
 SimpleDAG = dag_module.SimpleDAG
 
 
@@ -462,7 +462,7 @@ class TestConvertMemStrToBytes(unittest.TestCase):
 # 3. Safe YAML tests
 # ---------------------------------------------------------------------------
 
-safe_yaml = _load_module('safe_yaml', 'forge/main/utils/safe_yaml.py')
+safe_yaml = _load_module('safe_yaml', 'forail/main/utils/safe_yaml.py')
 sanitize_jinja = safe_yaml.sanitize_jinja
 safe_dump = safe_yaml.safe_dump
 

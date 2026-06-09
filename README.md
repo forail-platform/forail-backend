@@ -1,12 +1,12 @@
-# Forge Backend
+# Forail Backend
 
-[![CI](https://github.com/forgeplatform/forge-backend/actions/workflows/ci.yml/badge.svg)](https://github.com/forgeplatform/forge-backend/actions/workflows/ci.yml)
+[![CI](https://github.com/forail-platform/forail-backend/actions/workflows/ci.yml/badge.svg)](https://github.com/forail-platform/forail-backend/actions/workflows/ci.yml)
 
-Django REST API + Task Engine for the Forge platform.
+Django REST API + Task Engine for the Forail platform.
 
 ## Project History
 
-Forge is a modernized fork of [Ansible AWX](https://github.com/ansible/awx), originally developed by Red Hat and the Ansible community under the Apache License 2.0. The fork was created in 2024 to refresh the runtime (Python 3.12, Django 4.2, modern frontend stack), rebrand all `awx-*` references to `forge-*`, and extend the platform with new features (dynamic surveys, drift detection, IaC scanning, multi-tenancy, OIDC+WebAuthn, OpenTelemetry observability, declarative Kubernetes operator).
+Forail is a modernized fork of [Ansible AWX](https://github.com/ansible/awx), originally developed by Red Hat and the Ansible community under the Apache License 2.0. The fork was created in 2024 to refresh the runtime (Python 3.12, Django 4.2, modern frontend stack), rebrand all `awx-*` references to `forail-*`, and extend the platform with new features (dynamic surveys, drift detection, IaC scanning, multi-tenancy, OIDC+WebAuthn, OpenTelemetry observability, declarative Kubernetes operator).
 
 Heritage attribution is preserved in [NOTICE](./NOTICE).
 
@@ -24,7 +24,7 @@ Heritage attribution is preserved in [NOTICE](./NOTICE).
 ## Structure
 
 ```
-forge/
+forail/
 ├── api/          # REST API (DRF views, serializers, permissions)
 ├── main/         # Core models, signals, tasks, migrations
 ├── conf/         # Configuration and database-backed settings
@@ -43,8 +43,8 @@ vagrant up
 vagrant ssh
 
 # Run tests
-pytest forge/main/tests/unit/ -v
-pytest forge/main/tests/functional/ -v
+pytest forail/main/tests/unit/ -v
+pytest forail/main/tests/functional/ -v
 
 # Lint
 flake8
@@ -85,13 +85,13 @@ See [docs/11-api-reference.md](docs/11-api-reference.md) for the complete refere
 ## Docker
 
 ```bash
-docker build -t ghcr.io/forgeplatform/forge-backend:latest .
+docker build -t ghcr.io/forail-platform/forail-backend:latest .
 ```
 
 ## Related Repositories
 
-- [forge-frontend](https://github.com/forgeplatform/forge-frontend) — React UI
-- [forge-devops](https://github.com/forgeplatform/forge-devops) — Docker Compose, Nginx, CI/CD
+- [forail-frontend](https://github.com/forail-platform/forail-frontend) — React UI
+- [forail-devops](https://github.com/forail-platform/forail-devops) — Docker Compose, Nginx, CI/CD
 
 ## License
 

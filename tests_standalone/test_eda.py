@@ -16,7 +16,7 @@ from datetime import timedelta
 import sys
 import os
 
-# Add the forge-backend to the path
+# Add the forail-backend to the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 
@@ -191,7 +191,7 @@ class TestHMACSignatureVerification(unittest.TestCase):
         mac = hmac.new(key.encode(), body, hashlib.sha256)
         signature = f'sha256={mac.hexdigest()}'
 
-        headers = {'X-Forge-Signature': signature}
+        headers = {'X-Forail-Signature': signature}
 
         # Verify manually
         expected_mac = hmac.new(key.encode(), body, hashlib.sha256)
@@ -202,7 +202,7 @@ class TestHMACSignatureVerification(unittest.TestCase):
     def test_generic_sha256_invalid(self):
         key = 'test-secret-key'
         body = b'{"event": "test"}'
-        headers = {'X-Forge-Signature': 'sha256=invalid_signature'}
+        headers = {'X-Forail-Signature': 'sha256=invalid_signature'}
 
         mac = hmac.new(key.encode(), body, hashlib.sha256)
         self.assertFalse(
@@ -418,17 +418,17 @@ class TestActionConfig(unittest.TestCase):
     def test_extra_vars_merging(self):
         user_vars = {'env': 'production', 'version': '1.2.3'}
         event_vars = {
-            'forge_eda_event_type': 'push',
-            'forge_eda_event_guid': 'abc-123',
-            'forge_eda_rule_name': 'deploy-on-push',
-            'forge_eda_payload': {'ref': 'refs/heads/main'},
+            'forail_eda_event_type': 'push',
+            'forail_eda_event_guid': 'abc-123',
+            'forail_eda_rule_name': 'deploy-on-push',
+            'forail_eda_payload': {'ref': 'refs/heads/main'},
         }
 
         merged = dict(user_vars)
         merged.update(event_vars)
 
         self.assertEqual(merged['env'], 'production')
-        self.assertEqual(merged['forge_eda_event_type'], 'push')
+        self.assertEqual(merged['forail_eda_event_type'], 'push')
         self.assertEqual(len(merged), 6)
 
 

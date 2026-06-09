@@ -5,7 +5,7 @@ logfile = /dev/stdout
 logfile_maxbytes = 0
 pidfile = /var/run/supervisor/supervisor.rsyslog.pid
 
-[program:forge-rsyslogd]
+[program:forail-rsyslogd]
 command = rsyslogd -n -i /var/run/awx-rsyslog/rsyslog.pid -f /var/lib/awx/rsyslog/rsyslog.conf
 autorestart = true
 startsecs = 0
@@ -17,12 +17,12 @@ stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
 stderr_events_enabled = true
 
-[program:forge-rsyslog-configurer]
+[program:forail-rsyslog-configurer]
 {% if kube_dev | bool %}
 command = make run-rsyslog-configurer
 directory = /awx_devel
 {% else %}
-command = forge-manage run_rsyslog_configurer
+command = forail-manage run_rsyslog_configurer
 directory = /var/lib/awx
 {% endif %}
 autorestart = true
@@ -35,8 +35,8 @@ stderr_logfile=/dev/stderr
 stderr_logfile_maxbytes=0
 
 {% if kube_dev | bool %}
-[program:forge-autoreload]
-command = /awx_devel/tools/docker-compose/awx-autoreload /awx_devel/forge
+[program:forail-autoreload]
+command = /awx_devel/tools/docker-compose/awx-autoreload /awx_devel/forail
 autostart = true
 autorestart = true
 stopasgroup=true
@@ -48,7 +48,7 @@ stderr_logfile_maxbytes=0
 {% endif %}
 
 [group:tower-processes]
-programs=forge-rsyslog-configurer,forge-rsyslogd
+programs=forail-rsyslog-configurer,forail-rsyslogd
 priority=5
 
 [eventlistener:superwatcher]

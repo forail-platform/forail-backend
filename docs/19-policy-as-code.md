@@ -1,6 +1,6 @@
 # 19 — Policy-as-Code (OPA)
 
-Runtime policy evaluation for launches. Forge stores Rego modules in
+Runtime policy evaluation for launches. Forail stores Rego modules in
 the database, pushes them to an OPA sidecar, and asks OPA before every
 Job / WorkflowJob / AdHocCommand starts. OPA can return **allow**,
 **warn**, or **deny**.
@@ -16,12 +16,12 @@ Job / WorkflowJob / AdHocCommand starts. OPA can return **allow**,
                     └────────┬───────────┘
                              │ post_save signal
                              ▼
-                    forge.main.policy.sync.push_policy()
+                    forail.main.policy.sync.push_policy()
                              │
-                             │ PUT /v1/policies/forge_<id>
+                             │ PUT /v1/policies/forail_<id>
                              ▼
                     ┌────────────────────┐
-                    │   forge-opa         │
+                    │   forail-opa         │
                     │   (sidecar)         │
                     └────────────────────┘
                              ▲
@@ -63,7 +63,7 @@ to the full request.
 
 ## Models
 
-`forge/main/models/policy.py`
+`forail/main/models/policy.py`
 
 ### `Policy(CommonModelNameNotUnique)`
 
@@ -71,7 +71,7 @@ to the full request.
 | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `organization`                                            | FK Organization (null = global)                                                                      |
 | `rego_module`                                             | Full Rego source — pushed to OPA on save                                                             |
-| `package_path`                                            | OPA Data path queried, e.g. `forge.launch`                                                           |
+| `package_path`                                            | OPA Data path queried, e.g. `forail.launch`                                                           |
 | `enforcement`                                             | `none` / `warn` / `enforce`                                                                          |
 | `enabled`                                                 | bool                                                                                                 |
 | `applies_to`                                              | JSON list of resource types (`job_template`, `workflow_job_template`, `ad_hoc_command`); empty = all |
@@ -100,7 +100,7 @@ Both are exported and unit-tested standalone.
 
 ---
 
-## OPA client — `forge/main/policy/opa_client.py`
+## OPA client — `forail/main/policy/opa_client.py`
 
 Tiny wrapper around `requests`. No extra dependency.
 
@@ -123,23 +123,23 @@ Anything that doesn't match is treated as a silent allow.
 
 ---
 
-## Sync — `forge/main/policy/sync.py`
+## Sync — `forail/main/policy/sync.py`
 
 `post_save` and `post_delete` signal receivers push or remove the Rego
-text via OPA's `/v1/policies/forge_<policy_id>` endpoint. Failures
+text via OPA's `/v1/policies/forail_<policy_id>` endpoint. Failures
 update `Policy.last_sync_status='failed'` but never raise — operators
 see the failure in the list page.
 
 The receivers are connected at module import time. Wired in
-`forge/main/models/__init__.py`:
+`forail/main/models/__init__.py`:
 
 ```python
-import forge.main.policy.sync  # noqa: F401  -- registers signals
+import forail.main.policy.sync  # noqa: F401  -- registers signals
 ```
 
 ---
 
-## Evaluator — `forge/main/policy/evaluator.py`
+## Evaluator — `forail/main/policy/evaluator.py`
 
 ```python
 build_launch_context(unified_job, request) -> dict
@@ -177,14 +177,14 @@ an org in `warn` never blocks even if a policy is `enforce`.
 
 ---
 
-## Settings — `forge/main/conf.py`
+## Settings — `forail/main/conf.py`
 
 Registered under the **Security** category:
 
 | Setting                     | Default                 | Notes                                                                            |
 | --------------------------- | ----------------------- | -------------------------------------------------------------------------------- |
 | `OPA_ENABLED`               | `False`                 | Master switch                                                                    |
-| `OPA_SERVER_URL`            | `http://forge-opa:8181` | Base URL of the sidecar                                                          |
+| `OPA_SERVER_URL`            | `http://forail-opa:8181` | Base URL of the sidecar                                                          |
 | `OPA_EVALUATION_TIMEOUT_MS` | `2000`                  | Per-evaluation timeout                                                           |
 | `OPA_FAIL_MODE`             | `allow`                 | What happens when OPA is unreachable. `allow` = fail-open, `deny` = fail-closed. |
 
@@ -223,16 +223,16 @@ Run with: `python -m unittest tests_standalone.test_policy -v`
 
 ## End-to-end manual verification
 
-1. Add the OPA sidecar to compose (`forge-deploy/docker-compose.yml`,
-   service `forge-opa`).
+1. Add the OPA sidecar to compose (`forail-deploy/docker-compose.yml`,
+   service `forail-opa`).
 2. Settings → Security → set `OPA_ENABLED=true`,
-   `OPA_SERVER_URL=http://forge-opa:8181`.
+   `OPA_SERVER_URL=http://forail-opa:8181`.
 3. PATCH an organization's `policy_enforcement` to `enforce`.
 4. Create a Policy via the UI: `applies_to=[job_template]`,
-   `enforcement=enforce`, package `forge.launch`, body:
+   `enforcement=enforce`, package `forail.launch`, body:
 
    ```rego
-   package forge.launch
+   package forail.launch
    default deny := false
    deny if {
      input.inventory.name == "prod-web"

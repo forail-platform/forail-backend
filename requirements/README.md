@@ -4,7 +4,7 @@ The `requirements.txt` file is generated from `requirements.in` and `requirement
 
 ## How To Use
 
-Commands should be run in the **forge container** from inside the `./requirements` directory of the forge-backend repository.
+Commands should be run in the **forail container** from inside the `./requirements` directory of the forail-backend repository.
 
 ### Upgrading or Adding Select Libraries
 

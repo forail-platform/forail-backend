@@ -8,12 +8,12 @@ How to run tests, what to test, and where tests live.
 
 | Suite                                                                      | Tool       | Count | Location                               |
 | -------------------------------------------------------------------------- | ---------- | ----- | -------------------------------------- |
-| Python unit                                                                | pytest     | 1083  | `forge/main/tests/unit/`               |
-| Python functional (API)                                                    | pytest     | 989   | `forge/main/tests/functional/`         |
+| Python unit                                                                | pytest     | 1083  | `forail/main/tests/unit/`               |
+| Python functional (API)                                                    | pytest     | 989   | `forail/main/tests/functional/`         |
 | Standalone (EDA, drift, service catalog, webauthn, policy, scanner, audit) | unittest   | 154+  | `tests_standalone/`                    |
-| Frontend                                                                   | vitest     | 72+   | `forge/ui_next/src/**/*.test.{ts,tsx}` |
-| Python lint                                                                | flake8     | —     | `forge/`                               |
-| Frontend lint                                                              | TypeScript | —     | `forge/ui_next/src/`                   |
+| Frontend                                                                   | vitest     | 72+   | `forail/ui_next/src/**/*.test.{ts,tsx}` |
+| Python lint                                                                | flake8     | —     | `forail/`                               |
+| Frontend lint                                                              | TypeScript | —     | `forail/ui_next/src/`                   |
 
 ### Standalone Tests (no Django required)
 
@@ -59,17 +59,17 @@ python -m unittest discover tests_standalone -v
 
 ```bash
 vagrant ssh
-cd /forge_devel
+cd /forail_devel
 
 # All unit tests
 docker run --rm \
-  -v /forge_devel:/forge_devel \
-  -e DJANGO_SETTINGS_MODULE=forge.settings.defaults \
-  --network docker-compose-prod_forge \
+  -v /forail_devel:/forail_devel \
+  -e DJANGO_SETTINGS_MODULE=forail.settings.defaults \
+  --network docker-compose-prod_forail \
   --user 0 \
-  forge-platform/forge:latest \
+  forail-platform/forail:latest \
   bash -c "pip install pytest pytest-django pytest-mock drf-yasg -q && \
-    cd /forge_devel && python -m pytest forge/main/tests/unit/ -q"
+    cd /forail_devel && python -m pytest forail/main/tests/unit/ -q"
 ```
 
 ### Useful pytest flags
@@ -88,13 +88,13 @@ docker run --rm \
 
 ```bash
 # Only tests related to jobs
-python -m pytest forge/main/tests/unit/ -k "test_job" -v
+python -m pytest forail/main/tests/unit/ -k "test_job" -v
 
 # Only one file
-python -m pytest forge/main/tests/unit/test_models.py -v
+python -m pytest forail/main/tests/unit/test_models.py -v
 
 # Stop on first failure with full traceback
-python -m pytest forge/main/tests/unit/ -x --tb=long
+python -m pytest forail/main/tests/unit/ -x --tb=long
 ```
 
 ---
@@ -102,7 +102,7 @@ python -m pytest forge/main/tests/unit/ -x --tb=long
 ## Running Frontend Tests
 
 ```bash
-cd forge/ui_next
+cd forail/ui_next
 npm ci              # Install dependencies (first time)
 npm test            # Run all tests
 npm run test:watch  # Watch mode — re-run on changes
@@ -122,7 +122,7 @@ npx vitest run --reporter=verbose
 ### Backend
 
 ```
-forge/main/tests/
+forail/main/tests/
 ├── unit/                       # Pure unit tests (fast, no database)
 │   ├── test_models.py
 │   ├── test_tasks.py
@@ -184,8 +184,8 @@ src/
 
 ```bash
 pip install pytest-cov
-python -m pytest forge/main/tests/unit/ \
-  --cov=forge \
+python -m pytest forail/main/tests/unit/ \
+  --cov=forail \
   --cov-report=term-missing \
   --cov-report=html:htmlcov/
 ```
@@ -193,7 +193,7 @@ python -m pytest forge/main/tests/unit/ \
 ### Frontend
 
 ```bash
-cd forge/ui_next
+cd forail/ui_next
 npx vitest run --coverage
 # Output: coverage/index.html
 ```
@@ -202,7 +202,7 @@ npx vitest run --coverage
 
 ## Watch Out
 
-1. **Tests use `forge.settings.defaults`**, not production settings.
+1. **Tests use `forail.settings.defaults`**, not production settings.
    If a test passes locally but fails in CI, check if it depends on a
    production-only setting.
 
