@@ -14,6 +14,7 @@ Middleware ordering dependencies:
 """
 
 import functools
+import hashlib
 import logging
 import threading
 import time
@@ -60,19 +61,25 @@ class RequestContextMiddleware(MiddlewareMixin):
     """
 
     def process_request(self, request):
-        # IP address
+        # IP address — only trust X-Forwarded-For when the direct peer is a
+        # configured trusted proxy (PROXY_IP_ALLOWED_LIST). Otherwise a client
+        # could forge X-Forwarded-For and spoof the recorded audit actor_ip.
+        remote_addr = request.META.get('REMOTE_ADDR', '')
         forwarded = request.META.get('HTTP_X_FORWARDED_FOR', '')
-        if forwarded:
+        proxy_allowed = getattr(settings, 'PROXY_IP_ALLOWED_LIST', None) or []
+        if forwarded and remote_addr in proxy_allowed:
             _request_context.ip = forwarded.split(',')[0].strip()
         else:
-            _request_context.ip = request.META.get('REMOTE_ADDR', '')
+            _request_context.ip = remote_addr
 
         # User agent
         _request_context.user_agent = request.META.get('HTTP_USER_AGENT', '')[:512]
 
-        # Session ID
+        # Session ID — store a one-way hash, never the live session key. Anyone who
+        # can read the audit trail must not be able to lift a usable key and hijack
+        # the actor's session. SHA-256 hex is 64 chars, matching the field width.
         session_key = getattr(getattr(request, 'session', None), 'session_key', None)
-        _request_context.session_id = session_key or ''
+        _request_context.session_id = hashlib.sha256(session_key.encode()).hexdigest() if session_key else ''
 
     def process_response(self, request, response):
         _request_context.ip = ''

@@ -74,9 +74,9 @@ class TenantQueueRouter:
 
     # Task names that should be routed per-tenant.
     ROUTABLE_TASKS = {
-        'awx.main.tasks.system.handle_work_success',
-        'awx.main.tasks.system.handle_work_error',
-        'awx.main.scheduler.tasks.run_task_manager',
+        'forail.main.tasks.system.handle_work_success',
+        'forail.main.tasks.system.handle_work_error',
+        'forail.main.scheduler.tasks.run_task_manager',
     }
 
     def route_for_task(self, task, args=None, kwargs=None):

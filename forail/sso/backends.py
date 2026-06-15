@@ -465,33 +465,20 @@ def on_populate_user(sender, **kwargs):
 # ============================================================================
 # OIDC (Generic OpenID Connect)
 # ============================================================================
-
-try:
-    from social_core.backends.open_id_connect import OpenIdConnectAuth as BaseOIDCAuth
-except Exception:  # pragma: no cover
-    BaseOIDCAuth = None
-
-
-if BaseOIDCAuth is not None:
-    class ForailOIDCAuth(BaseOIDCAuth):
-        """Generic OIDC backend wired into the existing social pipeline.
-
-        Configuration is read from DB-backed settings declared in
-        forail/sso/conf.py:
-          SOCIAL_AUTH_OIDC_OIDC_ENDPOINT
-          SOCIAL_AUTH_OIDC_KEY
-          SOCIAL_AUTH_OIDC_SECRET
-          SOCIAL_AUTH_OIDC_SCOPE (default ["openid","profile","email"])
-          SOCIAL_AUTH_OIDC_VERIFY_SSL
-        """
-
-        name = "oidc"
-
-        def get_user_details(self, response):
-            details = super().get_user_details(response)
-            # Mirror the username off the email if the IdP omitted preferred_username
-            if not details.get("username"):
-                details["username"] = (response.get("preferred_username")
-                                       or response.get("email") or "")
-            return details
+#
+# OIDC is handled by the upstream backend registered in AUTHENTICATION_BACKENDS:
+#   social_core.backends.open_id_connect.OpenIdConnectAuth   (name == "oidc")
+#
+# Its settings are the DB-backed values declared in forail/sso/conf.py
+# (SOCIAL_AUTH_OIDC_KEY / _SECRET / _OIDC_ENDPOINT / _SCOPE / _VERIFY_SSL).
+# SOCIAL_AUTH_OIDC_VERIFY_SSL IS enforced: social_core's BaseAuth.request()
+# applies `self.setting("VERIFY_SSL")` as the `verify=` kwarg on every
+# discovery / JWKS / token request, and that resolves to SOCIAL_AUTH_OIDC_VERIFY_SSL.
+#
+# A custom ForailOIDCAuth subclass (adding a username fallback off
+# preferred_username/email) was defined here but never registered in
+# AUTHENTICATION_BACKENDS — it was dead code, so it has been removed to avoid
+# implying a second, active OIDC backend. If the username fallback is wanted,
+# reintroduce the subclass AND register it in AUTHENTICATION_BACKENDS in place
+# of the upstream path, with OIDC login integration coverage.
 

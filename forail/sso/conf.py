@@ -1456,7 +1456,19 @@ if settings.ALLOW_LOCAL_RESOURCE_MANAGEMENT:
         'SOCIAL_AUTH_SAML_SECURITY_CONFIG',
         field_class=SAMLSecurityField,
         allow_null=True,
-        default={'requestedAuthnContext': False},
+        default={
+            'requestedAuthnContext': False,
+            # Secure-by-default: require the IdP to sign responses AND assertions,
+            # reject unsolicited responses (replay), and use SHA-256 rather than the
+            # broken SHA-1. BREAKING for IdPs that send unsigned or SHA-1-signed
+            # assertions — see the 2026.07 upgrade notes; override this setting to
+            # relax for a legacy IdP.
+            'wantMessagesSigned': True,
+            'wantAssertionsSigned': True,
+            'rejectUnsolicitedResponsesWithInResponseTo': True,
+            'signatureAlgorithm': 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256',
+            'digestAlgorithm': 'http://www.w3.org/2001/04/xmlenc#sha256',
+        },
         label=_('SAML Security Config'),
         help_text=_(
             'A dict of key value pairs that are passed to the underlying python-saml security setting https://github.com/onelogin/python-saml#settings'
@@ -1470,8 +1482,8 @@ if settings.ALLOW_LOCAL_RESOURCE_MANAGEMENT:
                 ("logoutRequestSigned", False),
                 ("logoutResponseSigned", False),
                 ("signMetadata", False),
-                ("wantMessagesSigned", False),
-                ("wantAssertionsSigned", False),
+                ("wantMessagesSigned", True),
+                ("wantAssertionsSigned", True),
                 ("wantAssertionsEncrypted", False),
                 ("wantNameId", True),
                 ("wantNameIdEncrypted", False),
@@ -1480,8 +1492,8 @@ if settings.ALLOW_LOCAL_RESOURCE_MANAGEMENT:
                 ("requestedAuthnContextComparison", "exact"),
                 ("metadataValidUntil", "2015-06-26T20:00:00Z"),
                 ("metadataCacheDuration", "PT518400S"),
-                ("signatureAlgorithm", "http://www.w3.org/2000/09/xmldsig#rsa-sha1"),
-                ("digestAlgorithm", "http://www.w3.org/2000/09/xmldsig#sha1"),
+                ("signatureAlgorithm", "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"),
+                ("digestAlgorithm", "http://www.w3.org/2001/04/xmlenc#sha256"),
             ]
         ),
     )

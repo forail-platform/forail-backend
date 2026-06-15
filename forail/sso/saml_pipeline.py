@@ -257,10 +257,16 @@ def _check_flag(user, flag, attributes, user_flags_settings):
                     % (flag, user.username, attr_setting, ", ".join(saml_user_attribute_value), ', '.join(required_value))
                 )
                 new_flag = False
-        # If there was no required value then we can just allow them in because of the attribute
+        # No required value configured: do NOT grant on attribute presence alone.
+        # Otherwise any user the IdP sends with this attribute (any value) is
+        # escalated — a privilege-escalation path, especially combined with
+        # unsigned assertions. Fail safe and require an explicit is_%s_value.
         else:
-            logger.debug("Giving %s %s from attribute %s" % (user.username, flag, attr_setting))
-            new_flag = True
+            logger.warning(
+                "Refusing %s for %s: attribute %s is set without a required value "
+                "(is_%s_value); configure a value to grant this flag." % (flag, user.username, attr_setting, flag)
+            )
+            new_flag = False
 
     # Get the users old flag
     old_value = getattr(user, "is_%s" % (flag))

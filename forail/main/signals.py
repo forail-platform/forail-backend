@@ -147,12 +147,45 @@ def rebuild_role_ancestor_list(reverse, model, instance, pk_set, action, **kwarg
             model.rebuild_role_ancestor_list([], [instance.id])
 
 
+def capture_prior_superuser_status(sender, instance, **kwargs):
+    '''Capture the pre-save is_superuser value so sync_superuser_status_to_rbac can
+    detect (and audit) an actual grant/revoke. Django's auth.User has no
+    _prior_values_store, so we read it from the DB just before the write — and only
+    when is_superuser could be changing, to avoid an extra query on every login save.'''
+    update_fields = kwargs.get('update_fields', None)
+    if update_fields is not None and 'is_superuser' not in update_fields:
+        instance._prior_is_superuser = None
+        return
+    if instance.pk:
+        instance._prior_is_superuser = sender.objects.filter(pk=instance.pk).values_list('is_superuser', flat=True).first()
+    else:
+        instance._prior_is_superuser = False
+
+
 def sync_superuser_status_to_rbac(instance, **kwargs):
     'When the is_superuser flag is changed on a user, reflect that in the membership of the System Administrator role'
-    if settings.ANSIBLE_BASE_ROLE_SYSTEM_ACTIVATED:
-        return
     update_fields = kwargs.get('update_fields', None)
     if update_fields and 'is_superuser' not in update_fields:
+        return
+    # Audit an actual superuser grant/revoke into the dedicated AuditEvent log,
+    # independently of the activity stream (which can be disabled) and of the DAB
+    # role-system early-return below, so privilege changes are always captured.
+    prior = getattr(instance, '_prior_is_superuser', None)
+    if prior is not None and prior != instance.is_superuser:
+        granted = instance.is_superuser
+        try:
+            from forail.main.utils.audit import log_permission_change
+            log_permission_change(
+                action='superuser_granted' if granted else 'superuser_revoked',
+                actor=get_current_user_or_none(),
+                resource_type='user',
+                resource_id=instance.pk,
+                resource_name=getattr(instance, 'username', ''),
+                description='Superuser {} for user "{}"'.format('granted' if granted else 'revoked', getattr(instance, 'username', '')),
+            )
+        except Exception:  # pylint: disable=broad-except
+            logger.exception('Failed to audit superuser change for user %s', getattr(instance, 'pk', '?'))
+    if settings.ANSIBLE_BASE_ROLE_SYSTEM_ACTIVATED:
         return
     if instance.is_superuser:
         Role.singleton(ROLE_SINGLETON_SYSTEM_ADMINISTRATOR).members.add(instance)
@@ -259,6 +292,7 @@ post_save.connect(save_related_job_templates, sender=Inventory)
 m2m_changed.connect(rebuild_role_ancestor_list, Role.parents.through)
 m2m_changed.connect(rbac_activity_stream, Role.members.through)
 m2m_changed.connect(rbac_activity_stream, Role.parents.through)
+pre_save.connect(capture_prior_superuser_status, sender=User)
 post_save.connect(sync_superuser_status_to_rbac, sender=User)
 m2m_changed.connect(sync_rbac_to_superuser_status, Role.members.through)
 pre_delete.connect(cleanup_detached_labels_on_deleted_parent, sender=UnifiedJob)
@@ -281,7 +315,9 @@ def _tenancy_on_unified_job_save(sender, instance, created, **kwargs):
         from forail.main.tenancy.quota import on_job_finished
         on_job_finished(instance)
     except Exception:  # pylint: disable=broad-except
-        pass
+        # Quota decrement is a security/availability control — never swallow
+        # silently or a tenant can drift over (or under) its concurrency limit.
+        logger.exception('Failed to decrement tenant concurrency quota for %s %s', instance.__class__.__name__, getattr(instance, 'pk', '?'))
     # Tier 3.6 follow-up: emit forail_job_duration_seconds histogram observation
     # so the Grafana p50/p95/p99 panels actually have data.
     try:
@@ -517,6 +553,8 @@ def activity_stream_create(sender, instance, created, **kwargs):
                 logger.exception('Failed to log credential access audit events for job %s', instance.pk)
         if type(instance) == OAuth2AccessToken:
             changes['token'] = CENSOR_VALUE
+            if 'refresh_token' in changes:
+                changes['refresh_token'] = CENSOR_VALUE
         activity_entry = get_activity_stream_class()(operation='create', object1=object1, changes=json.dumps(changes), actor=get_current_user_or_none())
         # TODO: Weird situation where cascade SETNULL doesn't work
         #      it might actually be a good idea to remove all of these FK references since
@@ -580,6 +618,8 @@ def activity_stream_delete(sender, instance, **kwargs):
     object1 = camelcase_to_underscore(instance.__class__.__name__)
     if type(instance) == OAuth2AccessToken:
         changes['token'] = CENSOR_VALUE
+        if 'refresh_token' in changes:
+            changes['refresh_token'] = CENSOR_VALUE
     activity_entry = get_activity_stream_class()(operation='delete', changes=json.dumps(changes), object1=object1, actor=get_current_user_or_none())
     activity_entry.save()
     connection.on_commit(lambda: emit_activity_stream_change(activity_entry))
