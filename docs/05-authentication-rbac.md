@@ -106,6 +106,20 @@ You need to define:
 - IDP (Identity Provider) configuration: entity_id, SSO URL, X.509 certificate
 - Attribute mapping: which SAML attributes correspond to email, name, etc.
 
+**Secure defaults (since the 2026.07 hardening):**
+
+- `SOCIAL_AUTH_SAML_SECURITY_CONFIG` now defaults to requiring **signed
+  responses and signed assertions** (`wantMessagesSigned` / `wantAssertionsSigned`),
+  rejecting unsolicited responses (replay protection), and using **SHA-256**
+  (`rsa-sha256` / `sha256`) instead of the broken SHA-1.
+- If your IdP sends **unsigned** assertions or signs with **SHA-1**, logins will
+  be rejected until the IdP is reconfigured — or override
+  `SOCIAL_AUTH_SAML_SECURITY_CONFIG` to relax it for a legacy IdP.
+- Granting `is_superuser` / `is_system_auditor` from a SAML attribute now
+  **requires a non-empty `is_*_value`**. Configuring only `is_*_attr` (no value)
+  no longer grants the flag to every user who presents the attribute — it fails
+  safe and logs a warning.
+
 **Watch out:**
 
 - The SAML metadata endpoint is at `https://forail.example.com/sso/metadata/saml/`

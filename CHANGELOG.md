@@ -7,6 +7,50 @@ and the project adheres to CalVer (`YYYY.MM.PATCH`).
 
 ## [Unreleased]
 
+### Added
+- **AWX → Forail migration importer** (`forail-manage import_from_awx`): a
+  one-shot, idempotent importer that pulls Organizations, Users, Teams,
+  Credential Types, Credentials, Projects, Inventories (groups + hierarchy +
+  hosts) and Job Templates from an existing AWX/AAP install via its REST API.
+  Supports `--dry-run`, `--resource` filtering, token or basic auth, and
+  `--insecure`. Secret credential inputs are not exported by AWX, so the
+  importer reports how many secret fields must be re-entered. (Workflows,
+  schedules, notification templates, inventory sources and RBAC role
+  assignments are planned follow-ups.)
+
+### Security
+- **Audit superuser grant/revoke** to the dedicated `AuditEvent` log
+  (`log_permission_change`), independently of the activity stream (which can be
+  disabled) — privilege changes are now always captured.
+- **Hash `actor_session_id`** in audit records (SHA-256) instead of storing the
+  raw Django session key, so audit-log readers cannot hijack live sessions.
+- **Trusted-proxy `X-Forwarded-For`**: the audit `actor_ip` now honors
+  `X-Forwarded-For` only when the direct peer is in `PROXY_IP_ALLOWED_LIST`,
+  preventing source-IP spoofing.
+- **Censor OAuth `refresh_token`** (in addition to `token`) in activity-stream
+  create and delete entries.
+- **Fail loud on tenant quota errors**: the per-tenant concurrency-quota
+  decrement is no longer swallowed by a bare `except` — failures are logged.
+- **BREAKING — enforce SAML signing + SHA-256 by default**:
+  `SOCIAL_AUTH_SAML_SECURITY_CONFIG` now defaults to `wantMessagesSigned` /
+  `wantAssertionsSigned`, replay protection, and `rsa-sha256` / `sha256`.
+  IdPs sending unsigned or SHA-1 assertions must be reconfigured (or the setting
+  relaxed). See the 2026.07 release notes for upgrade guidance.
+- **BREAKING — SAML role attribute requires a value**: granting
+  `is_superuser` / `is_system_auditor` from a SAML attribute now requires a
+  non-empty `is_*_value`; configuring only `is_*_attr` no longer escalates every
+  user presenting the attribute (fails safe + warns).
+- Removed dead, unregistered `ForailOIDCAuth` backend to avoid implying a second
+  active OIDC backend. OIDC is handled by `social_core`'s `OpenIdConnectAuth`,
+  whose requests honor `SOCIAL_AUTH_OIDC_VERIFY_SSL` (verified).
+
+### Fixed
+- `pytest.ini` pointed `DJANGO_SETTINGS_MODULE` at the pre-rename
+  `awx.main.tests.settings_for_test`, which no longer exists — the test suite
+  could not start. Corrected to `forail.main.tests.settings_for_test`.
+- `TenantQueueRouter.ROUTABLE_TASKS` still referenced the pre-rename
+  `awx.main.tasks.*` task names; corrected to `forail.main.tasks.*`.
+
 ## [2026.06.0] - 2026-06-14
 
 ### Changed

@@ -11,15 +11,23 @@ Forail provides two complementary audit mechanisms:
 
 The existing `ActivityStream` model now captures request metadata on every entry:
 
-| Field              | Type                  | Description                                        |
-| ------------------ | --------------------- | -------------------------------------------------- |
-| `actor_ip`         | GenericIPAddressField | IP address of the actor (supports X-Forwarded-For) |
-| `actor_user_agent` | CharField(512)        | User-Agent header from the request                 |
-| `actor_session_id` | CharField(64)         | Django session ID at the time of the event         |
+| Field              | Type                  | Description                                                              |
+| ------------------ | --------------------- | ------------------------------------------------------------------------ |
+| `actor_ip`         | GenericIPAddressField | IP address of the actor                                                  |
+| `actor_user_agent` | CharField(512)        | User-Agent header from the request                                       |
+| `actor_session_id` | CharField(64)         | **SHA-256 hash** of the actor's Django session key (never the raw key)   |
 
 These fields are automatically populated by `RequestContextMiddleware` which
 extracts the data from each incoming HTTP request and stores it in thread-local
 storage. The `ActivityStream.save()` method reads from this context on first save.
+
+**Security note:**
+- `actor_ip` is taken from `X-Forwarded-For` **only when the direct peer is a
+  configured trusted proxy** (`PROXY_IP_ALLOWED_LIST`); otherwise `REMOTE_ADDR`
+  is used. This prevents a client from forging the recorded source IP.
+- `actor_session_id` stores a one-way **SHA-256 hash** of the session key, not
+  the key itself, so anyone able to read the audit trail cannot lift a usable
+  session key and hijack the actor's session.
 
 ### API Response
 
@@ -32,7 +40,7 @@ Activity stream entries now include the new fields in the API response:
   "operation": "update",
   "actor_ip": "203.0.113.50",
   "actor_user_agent": "Mozilla/5.0 ...",
-  "actor_session_id": "abc123def456",
+  "actor_session_id": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
   "changes": { ... },
   "summary_fields": { "actor": { "id": 1, "username": "admin" } }
 }
@@ -203,7 +211,7 @@ cause the calling operation to fail.
 
 `RequestContextMiddleware` in `forail/main/middleware.py`:
 
-- Extracts IP (from `X-Forwarded-For` or `REMOTE_ADDR`), User-Agent, and session ID
+- Extracts IP (`X-Forwarded-For` only behind a trusted proxy in `PROXY_IP_ALLOWED_LIST`, else `REMOTE_ADDR`), User-Agent, and a SHA-256 hash of the session key
 - Stores in thread-local storage for signal handlers to read
 - Cleans up after each response
 - Must be placed after `AuthenticationMiddleware` in `MIDDLEWARE` setting
