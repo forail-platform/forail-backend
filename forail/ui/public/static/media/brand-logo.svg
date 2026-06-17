@@ -1,64 +1,9 @@
-<svg width="500" height="500" viewBox="0 0 500 500" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Background -->
-  <rect width="500" height="500" rx="60" fill="#0D0F12"/>
-  
-  <!-- Subtle radial glow behind anvil -->
-  <radialGradient id="glow" cx="250" cy="280" r="180" gradientUnits="userSpaceOnUse">
-    <stop offset="0%" stop-color="#E8531E" stop-opacity="0.12"/>
-    <stop offset="100%" stop-color="#E8531E" stop-opacity="0"/>
-  </radialGradient>
-  <circle cx="250" cy="280" r="180" fill="url(#glow)"/>
-
-  <!-- Floor reflection line -->
-  <line x1="100" y1="410" x2="400" y2="410" stroke="#1A1D23" stroke-width="2"/>
-
-  <g transform="translate(95, 80) scale(4.2)">
-    <!-- Anvil base (wider trapezoid) -->
-    <path d="M10 62 L17 50 L57 50 L64 62 Z" fill="#E8531E"/>
-    
-    <!-- Anvil body -->
-    <path d="M15 50 L15 35 C15 29 20 24 28 24 L50 24 C55 24 58 27 58 32 L58 50 Z" fill="#FF6B35"/>
-    
-    <!-- Anvil horn (left side) -->
-    <path d="M2 35 L15 35 L15 43 L6 43 Z" fill="#FF6B35"/>
-    
-    <!-- Anvil top face highlight -->
-    <path d="M15 24 L58 24 L58 29 L15 29 Z" fill="#F5A623" opacity="0.5"/>
-    
-    <!-- Anvil edge highlight -->
-    <path d="M15 24 L58 24" stroke="#FFD93D" stroke-width="0.8" opacity="0.4"/>
-    
-    <!-- Hammer -->
-    <g transform="rotate(-38, 44, 14)">
-      <!-- Handle -->
-      <rect x="41" y="4" width="5.5" height="22" rx="1.8" fill="#F5F6F8"/>
-      <!-- Head -->
-      <rect x="35" y="1" width="18" height="9" rx="2.2" fill="#C4C9D4"/>
-      <!-- Head top highlight -->
-      <rect x="35" y="1" width="18" height="3.5" rx="1.2" fill="#F5F6F8" opacity="0.45"/>
-      <!-- Head bottom shadow -->
-      <rect x="35" y="7" width="18" height="3" rx="1" fill="#8B919E" opacity="0.3"/>
-    </g>
-    
-    <!-- Impact sparks cluster -->
-    <circle cx="36" cy="22" r="2.2" fill="#FFD93D">
-      <animate attributeName="opacity" values="0.9;0.5;0.9" dur="2s" repeatCount="indefinite"/>
-    </circle>
-    <circle cx="28" cy="18" r="1.4" fill="#FFD93D" opacity="0.7">
-      <animate attributeName="opacity" values="0.7;0.3;0.7" dur="2.5s" repeatCount="indefinite"/>
-    </circle>
-    <circle cx="44" cy="19" r="1.6" fill="#F5A623" opacity="0.85">
-      <animate attributeName="opacity" values="0.85;0.4;0.85" dur="1.8s" repeatCount="indefinite"/>
-    </circle>
-    <circle cx="31" cy="15" r="1.0" fill="#FFD93D" opacity="0.6">
-      <animate attributeName="opacity" values="0.6;0.2;0.6" dur="3s" repeatCount="indefinite"/>
-    </circle>
-    <circle cx="41" cy="15" r="0.8" fill="#FFD93D" opacity="0.5"/>
-    <circle cx="25" cy="21" r="0.9" fill="#F5A623" opacity="0.55"/>
-    
-    <!-- Small flying spark trails -->
-    <line x1="28" y1="18" x2="22" y2="12" stroke="#FFD93D" stroke-width="0.5" opacity="0.4" stroke-linecap="round"/>
-    <line x1="44" y1="19" x2="50" y2="13" stroke="#F5A623" stroke-width="0.5" opacity="0.35" stroke-linecap="round"/>
-    <line x1="31" y1="15" x2="27" y2="9" stroke="#FFD93D" stroke-width="0.4" opacity="0.3" stroke-linecap="round"/>
-  </g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="190.9" height="64" viewBox="0 0 190.9 64"><style>.wm{fill:#15171A}@media(prefers-color-scheme:dark){.wm{fill:#F4F5F4}}</style><g fill="none">
+<line x1="18" y1="28.5" x2="45" y2="12.5" stroke="#1D9E75" stroke-width="4" stroke-linecap="round"/>
+<line x1="18" y1="28.5" x2="49" y2="36.5" stroke="#1D9E75" stroke-width="4" stroke-linecap="round"/>
+<line x1="18" y1="28.5" x2="26" y2="51.5" stroke="#1D9E75" stroke-width="4" stroke-linecap="round"/>
+<rect x="9" y="19.5" width="18" height="18" rx="5" fill="#1D9E75"/>
+<circle cx="45" cy="12.5" r="6" fill="#1D9E75"/>
+<circle cx="49" cy="36.5" r="6" fill="#1D9E75"/>
+<circle cx="26" cy="51.5" r="6" fill="#1D9E75"/>
+</g><g transform="translate(70.896,49.549) scale(0.04600,-0.04600)"><path class="wm" d="M306 458H204V0H89V458H24V551H89V590Q89 685 139.5 728.5Q190 772 298 772V677Q246 677 225.0 657.5Q204 638 204 590V551H306ZM360 276Q360 360 397.0 425.0Q434 490 498.0 525.0Q562 560 641 560Q720 560 784.0 525.0Q848 490 885.0 425.0Q922 360 922 276Q922 192 884.0 127.0Q846 62 780.5 26.5Q715 -9 636 -9Q558 -9 495.0 26.5Q432 62 396.0 126.5Q360 191 360 276ZM805 276Q805 336 782.0 377.5Q759 419 721.0 440.0Q683 461 639 461Q595 461 557.5 440.0Q520 419 498.0 377.5Q476 336 476 276Q476 187 521.5 138.5Q567 90 636 90Q680 90 718.5 111.0Q757 132 781.0 174.0Q805 216 805 276ZM1304 560V442H1275Q1208 442 1173.5 408.0Q1139 374 1139 290V0H1025V551H1139V471Q1164 513 1205.5 536.5Q1247 560 1304 560ZM1621 560Q1686 560 1734.5 534.5Q1783 509 1812 471V551H1927V0H1812V82Q1783 43 1733.0 17.0Q1683 -9 1619 -9Q1548 -9 1489.0 27.5Q1430 64 1395.5 129.5Q1361 195 1361 278Q1361 361 1395.5 425.0Q1430 489 1489.5 524.5Q1549 560 1621 560ZM1645 461Q1601 461 1563.0 439.5Q1525 418 1501.5 376.5Q1478 335 1478 278Q1478 221 1501.5 178.0Q1525 135 1563.5 112.5Q1602 90 1645 90Q1689 90 1727.0 112.0Q1765 134 1788.5 176.5Q1812 219 1812 276Q1812 333 1788.5 375.0Q1765 417 1727.0 439.0Q1689 461 1645 461ZM2052 697Q2052 728 2073.0 749.0Q2094 770 2125 770Q2155 770 2176.0 749.0Q2197 728 2197 697Q2197 666 2176.0 645.0Q2155 624 2125 624Q2094 624 2073.0 645.0Q2052 666 2052 697ZM2181 551V0H2067V551ZM2435 740V0H2321V740Z"/></g></svg>

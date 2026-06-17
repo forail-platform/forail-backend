@@ -4,12 +4,12 @@ import styled from 'styled-components';
 
 const BrandImg = styled.img`
   flex: initial;
-  height: 76px;
+  height: 44px;
   width: initial;
   padding-left: 0px;
   margin: 0px 0px 0px 0px;
-  max-width: 100px;
-  max-height: initial;
+  max-width: 240px;
+  max-height: 44px;
   pointer-events: none;
 `;
 
