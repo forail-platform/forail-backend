@@ -3,20 +3,23 @@ import_from_awx — one-shot migration of configuration from an existing AWX
 (or AAP) installation into Forail.
 
 Connects to the source AWX REST API and recreates Organizations, Users, Teams,
-Credential Types, Credentials, Projects, Inventories (groups + hosts) and Job
-Templates in this Forail instance. It is idempotent: re-running matches existing
-objects by natural key (name within organization, username for users) and
-updates them instead of creating duplicates.
+Credential Types, Credentials, Projects, Inventories (groups + hosts), Inventory
+Sources, Job Templates, Workflow Job Templates (with their node graph),
+Notification Templates, Schedules and RBAC role assignments in this Forail
+instance. It is idempotent: re-running matches existing objects by natural key
+(name within organization, username for users) and updates them instead of
+creating duplicates.
 
 Secrets caveat: the AWX API never returns secret credential inputs (it replaces
 them with the literal ``$encrypted$``). This importer brings over the credential
 *structure* and any non-secret inputs, but secret values (passwords, SSH keys,
-tokens) MUST be re-entered afterwards. The command reports how many such fields
-need attention.
+tokens) MUST be re-entered afterwards. The same applies to secret fields inside
+notification configurations (tokens, passwords). The command reports how many
+such fields need attention.
 
-Not yet handled (documented TODO): Workflow Job Templates, Schedules,
-Notification Templates, and inventory sources. Group hierarchy and host/group
-membership ARE imported.
+Group hierarchy and host/group membership ARE imported. Job/Workflow execution
+history and ephemeral run state are intentionally NOT imported — this migrates
+configuration, not job results.
 
 Example:
     forail-manage import_from_awx \\
@@ -35,8 +38,11 @@ from django.contrib.auth.models import User
 from forail.main.models.organization import Organization, Team
 from forail.main.models.credential import Credential, CredentialType
 from forail.main.models.projects import Project
-from forail.main.models.inventory import Inventory, Host, Group
+from forail.main.models.inventory import Inventory, Host, Group, InventorySource
 from forail.main.models.jobs import JobTemplate
+from forail.main.models.workflow import WorkflowJobTemplate, WorkflowJobTemplateNode
+from forail.main.models.notifications import NotificationTemplate
+from forail.main.models.schedules import Schedule
 from forail.main.signals import disable_activity_stream
 
 logger = logging.getLogger('forail.main.commands.import_from_awx')
@@ -80,10 +86,13 @@ class ImportContext:
         self.dry_run = dry_run
         self.maps = {k: {} for k in (
             'organization', 'user', 'team', 'credential_type', 'credential',
-            'project', 'inventory', 'group', 'host', 'job_template')}
+            'project', 'inventory', 'group', 'host', 'inventory_source',
+            'job_template', 'workflow_job_template', 'workflow_node',
+            'notification_template', 'schedule')}
         self.created = {}
         self.updated = {}
         self.secret_fields_pending = 0
+        self.role_grants = 0
         self.warnings = []
 
     def record(self, kind, created):
@@ -98,12 +107,16 @@ class ImportContext:
 # Resources whose import order matters (dependencies first).
 RESOURCE_ORDER = [
     'organizations', 'users', 'teams', 'credential_types', 'credentials',
-    'projects', 'inventories', 'groups', 'hosts', 'job_templates',
+    'projects', 'inventories', 'groups', 'hosts', 'inventory_sources',
+    'job_templates', 'workflow_job_templates', 'workflow_nodes',
+    'notification_templates', 'schedules', 'roles',
 ]
 
 
 class Command(BaseCommand):
-    help = 'Import organizations, users, teams, credentials, projects, inventories and job templates from an existing AWX installation.'
+    help = ('Import organizations, users, teams, credentials, projects, inventories, '
+            'inventory sources, job templates, workflow job templates, notification '
+            'templates, schedules and RBAC role assignments from an existing AWX installation.')
 
     def add_arguments(self, parser):
         parser.add_argument('--url', required=True, help='Base URL of the source AWX install, e.g. https://awx.example.com')
@@ -146,7 +159,13 @@ class Command(BaseCommand):
             ('inventories', self._import_inventories),
             ('groups', self._import_groups),
             ('hosts', self._import_hosts),
+            ('inventory_sources', self._import_inventory_sources),
             ('job_templates', self._import_job_templates),
+            ('workflow_job_templates', self._import_workflow_job_templates),
+            ('workflow_nodes', self._import_workflow_nodes),
+            ('notification_templates', self._import_notification_templates),
+            ('schedules', self._import_schedules),
+            ('roles', self._import_roles),
         ]
 
         try:
@@ -357,6 +376,226 @@ class Command(BaseCommand):
                     if cred_obj is not None:
                         obj.credentials.add(cred_obj)
 
+    def _unified_jt(self, ctx, awx_id):
+        """Resolve an AWX unified_job_template id to its imported Forail object.
+
+        Job templates, projects, inventory sources and workflow job templates all
+        descend from UnifiedJobTemplate (multi-table inheritance), so they share a
+        single id space — a schedule's or workflow node's ``unified_job_template``
+        id matches exactly one of these maps.
+        """
+        if awx_id is None:
+            return None
+        for kind in ('job_template', 'workflow_job_template', 'project', 'inventory_source'):
+            obj = ctx.maps[kind].get(awx_id)
+            if obj is not None:
+                return obj
+        return None
+
+    def _import_inventory_sources(self, client, ctx):
+        opt_fields = ('source', 'source_path', 'source_vars', 'scm_branch', 'enabled_var',
+                      'enabled_value', 'host_filter', 'overwrite', 'overwrite_vars',
+                      'timeout', 'verbosity', 'limit')
+        for s in client.get_list('inventory_sources'):
+            inv = ctx.maps['inventory'].get(s.get('inventory'))
+            if inv is None:
+                ctx.warn('Skipping inventory source "%s": its inventory was not imported.' % s.get('name'))
+                continue
+            obj, created = InventorySource.objects.get_or_create(name=s['name'], inventory=inv)
+            obj.description = s.get('description', '') or ''
+            for f in opt_fields:
+                if s.get(f) is not None:
+                    setattr(obj, f, s[f])
+            source_project = ctx.maps['project'].get(s.get('source_project'))
+            if source_project is not None:
+                obj.source_project = source_project
+            obj.update_on_launch = bool(s.get('update_on_launch', False))
+            if s.get('update_cache_timeout') is not None:
+                obj.update_cache_timeout = s['update_cache_timeout']
+            self._save(ctx, 'inventory_source', obj, created)
+            ctx.maps['inventory_source'][s['id']] = obj
+            # Attach source credential(s) (M2M).
+            if not ctx.dry_run:
+                for cr in client.get_sub_list('inventory_sources', s['id'], 'credentials'):
+                    cred_obj = ctx.maps['credential'].get(cr['id'])
+                    if cred_obj is not None:
+                        obj.credentials.add(cred_obj)
+
+    def _import_workflow_job_templates(self, client, ctx):
+        simple_fields = ('allow_simultaneous', 'survey_enabled', 'ask_variables_on_launch',
+                         'limit', 'scm_branch', 'job_tags', 'skip_tags', 'webhook_service')
+        for wf in client.get_list('workflow_job_templates'):
+            org = ctx.maps['organization'].get(wf.get('organization'))
+            obj, created = WorkflowJobTemplate.objects.get_or_create(
+                name=wf['name'], organization=org)
+            obj.description = wf.get('description', '') or ''
+            obj.extra_vars = self._vars_to_text(wf.get('extra_vars'))
+            for f in simple_fields:
+                if wf.get(f) is not None:
+                    setattr(obj, f, wf[f])
+            inv = ctx.maps['inventory'].get(wf.get('inventory'))
+            if inv is not None:
+                obj.inventory = inv
+            if wf.get('survey_spec'):
+                obj.survey_spec = wf['survey_spec']
+            self._save(ctx, 'workflow_job_template', obj, created)
+            ctx.maps['workflow_job_template'][wf['id']] = obj
+
+    def _import_workflow_nodes(self, client, ctx):
+        """Create workflow nodes, then wire their success/failure/always edges.
+
+        Two passes are required because edges reference sibling nodes that may not
+        exist yet on the first pass.
+        """
+        for node in client.get_list('workflow_job_template_nodes'):
+            wfjt = ctx.maps['workflow_job_template'].get(node.get('workflow_job_template'))
+            if wfjt is None:
+                continue
+            ujt = self._unified_jt(ctx, node.get('unified_job_template'))
+            identifier = node.get('identifier') or str(node['id'])
+            obj, created = WorkflowJobTemplateNode.objects.get_or_create(
+                workflow_job_template=wfjt, identifier=identifier)
+            obj.unified_job_template = ujt
+            obj.all_parents_must_converge = bool(node.get('all_parents_must_converge', False))
+            obj.extra_data = node.get('extra_data', {}) or {}
+            inv = ctx.maps['inventory'].get(node.get('inventory'))
+            if inv is not None:
+                obj.inventory = inv
+            self._save(ctx, 'workflow_node', obj, created)
+            ctx.maps['workflow_node'][node['id']] = obj
+        # Second pass: wire the DAG edges now that every node exists.
+        if ctx.dry_run:
+            return
+        for awx_id, obj in ctx.maps['workflow_node'].items():
+            for edge in ('success_nodes', 'failure_nodes', 'always_nodes'):
+                for child in client.get_sub_list('workflow_job_template_nodes', awx_id, edge):
+                    child_obj = ctx.maps['workflow_node'].get(child['id'])
+                    if child_obj is not None:
+                        getattr(obj, edge).add(child_obj)
+
+    def _import_notification_templates(self, client, ctx):
+        for nt in client.get_list('notification_templates'):
+            org = ctx.maps['organization'].get(nt.get('organization'))
+            if org is None:
+                ctx.warn('Skipping notification template "%s": its organization was not imported.' % nt.get('name'))
+                continue
+            obj, created = NotificationTemplate.objects.get_or_create(name=nt['name'], organization=org)
+            obj.description = nt.get('description', '') or ''
+            obj.notification_type = nt.get('notification_type') or obj.notification_type
+            clean_config, n_secret = self._strip_secrets(nt.get('notification_configuration', {}))
+            obj.notification_configuration = clean_config
+            if nt.get('messages'):
+                obj.messages = nt['messages']
+            if n_secret:
+                ctx.secret_fields_pending += n_secret
+                ctx.warn('Notification template "%s": %d secret field(s) must be re-entered (not exported by AWX).' % (nt['name'], n_secret))
+            self._save(ctx, 'notification_template', obj, created)
+            ctx.maps['notification_template'][nt['id']] = obj
+        # Wire each unified job template's started/success/error notification hooks.
+        if ctx.dry_run:
+            return
+        hooks = (('notification_templates_started', 'notification_templates_started'),
+                 ('notification_templates_success', 'notification_templates_success'),
+                 ('notification_templates_error', 'notification_templates_error'))
+        targets = (('job_templates', 'job_template'),
+                   ('workflow_job_templates', 'workflow_job_template'),
+                   ('projects', 'project'),
+                   ('inventory_sources', 'inventory_source'))
+        for endpoint, kind in targets:
+            for awx_id, obj in ctx.maps[kind].items():
+                for sub, field in hooks:
+                    for n in client.get_sub_list(endpoint, awx_id, sub):
+                        nt_obj = ctx.maps['notification_template'].get(n['id'])
+                        if nt_obj is not None:
+                            getattr(obj, field).add(nt_obj)
+
+    def _import_schedules(self, client, ctx):
+        for sc in client.get_list('schedules'):
+            ujt = self._unified_jt(ctx, sc.get('unified_job_template'))
+            if ujt is None:
+                ctx.warn('Skipping schedule "%s": its job template was not imported.' % sc.get('name'))
+                continue
+            if not sc.get('rrule'):
+                ctx.warn('Skipping schedule "%s": no rrule.' % sc.get('name'))
+                continue
+            obj, created = Schedule.objects.get_or_create(
+                unified_job_template=ujt, name=sc['name'],
+                defaults={'rrule': sc['rrule']})
+            obj.description = sc.get('description', '') or ''
+            obj.rrule = sc['rrule']
+            obj.enabled = bool(sc.get('enabled', True))
+            obj.extra_data = sc.get('extra_data', {}) or {}
+            self._save(ctx, 'schedule', obj, created)
+            ctx.maps['schedule'][sc['id']] = obj
+
+    # Maps the AWX role resource_type (summary_fields.resource_type) to the
+    # ctx.maps key holding the imported Forail object for that resource.
+    _ROLE_RESOURCE_MAP = {
+        'organization': 'organization',
+        'team': 'team',
+        'inventory': 'inventory',
+        'credential': 'credential',
+        'project': 'project',
+        'job_template': 'job_template',
+        'workflow_job_template': 'workflow_job_template',
+        'inventory_source': 'inventory_source',
+        'notification_template': 'notification_template',
+        'credential_type': 'credential_type',
+    }
+
+    def _import_roles(self, client, ctx):
+        """Recreate RBAC role assignments (which users/teams hold which roles).
+
+        Singleton roles (system administrator/auditor) are applied directly to the
+        user; object roles are looked up by ``role_field`` on the imported object.
+        Granting a role to a user is ``role.members.add(user)``; granting it to a
+        team is ``role.parents.add(team.member_role)`` so the team inherits it.
+        """
+        for r in client.get_list('roles'):
+            role_field = r.get('role_field')
+            summary = r.get('summary_fields', {}) or {}
+            resource_type = summary.get('resource_type')
+            resource_id = summary.get('resource_id')
+
+            target_role = None
+            if resource_type is None:
+                # Singleton system role (e.g. system_administrator/system_auditor).
+                for u in client.get_sub_list('roles', r['id'], 'users'):
+                    user = ctx.maps['user'].get(u['id'])
+                    if user is None:
+                        continue
+                    if role_field == 'system_administrator':
+                        user.is_superuser = True
+                    elif role_field == 'system_auditor':
+                        user.is_system_auditor = True
+                    else:
+                        continue
+                    if not ctx.dry_run:
+                        user.save()
+                    ctx.role_grants += 1
+                continue
+
+            map_key = self._ROLE_RESOURCE_MAP.get(resource_type)
+            obj = ctx.maps[map_key].get(resource_id) if map_key else None
+            if obj is None or not role_field:
+                continue
+            target_role = getattr(obj, role_field, None)
+            if target_role is None:
+                continue
+
+            for u in client.get_sub_list('roles', r['id'], 'users'):
+                user = ctx.maps['user'].get(u['id'])
+                if user is not None:
+                    if not ctx.dry_run:
+                        target_role.members.add(user)
+                    ctx.role_grants += 1
+            for t in client.get_sub_list('roles', r['id'], 'teams'):
+                team = ctx.maps['team'].get(t['id'])
+                if team is not None:
+                    if not ctx.dry_run:
+                        target_role.parents.add(team.member_role)
+                    ctx.role_grants += 1
+
     # ----- reporting -------------------------------------------------------
 
     def _report(self, ctx):
@@ -364,10 +603,14 @@ class Command(BaseCommand):
         self.stdout.write('')
         self.stdout.write('=== %s ===' % mode)
         for kind in ('organization', 'user', 'team', 'credential_type', 'credential',
-                     'project', 'inventory', 'group', 'host', 'job_template'):
+                     'project', 'inventory', 'group', 'host', 'inventory_source',
+                     'job_template', 'workflow_job_template', 'workflow_node',
+                     'notification_template', 'schedule'):
             c, u = ctx.created.get(kind, 0), ctx.updated.get(kind, 0)
             if c or u:
-                self.stdout.write('  %-16s created=%d updated=%d' % (kind, c, u))
+                self.stdout.write('  %-22s created=%d updated=%d' % (kind, c, u))
+        if ctx.role_grants:
+            self.stdout.write('  %-22s granted=%d' % ('role_assignments', ctx.role_grants))
         if ctx.secret_fields_pending:
             self.stdout.write('')
             self.stdout.write(self.style.WARNING(

@@ -25,7 +25,8 @@ forail-manage import_from_awx \
 
 Resource types (and import order): `organizations`, `users`, `teams`,
 `credential_types`, `credentials`, `projects`, `inventories`, `groups`,
-`hosts`, `job_templates`.
+`hosts`, `inventory_sources`, `job_templates`, `workflow_job_templates`,
+`workflow_nodes`, `notification_templates`, `schedules`, `roles`.
 
 ## What it imports
 
@@ -40,8 +41,26 @@ Resource types (and import order): `organizations`, `users`, `teams`,
 - **Inventories** — variables, kind, host filter.
 - **Groups** — including the parent/child group hierarchy.
 - **Hosts** — including group membership.
+- **Inventory Sources** — source type/path/vars, SCM branch, overwrite and
+  verbosity options, `update_on_launch`, the source project, and source
+  credentials.
 - **Job Templates** — playbook, inventory, project, launch/`ask_*` flags,
   survey spec, and associated credentials.
+- **Workflow Job Templates** — extra vars, survey, limit/branch/tags, webhook
+  service, optional inventory.
+- **Workflow Nodes** — the full node graph: each node's
+  `unified_job_template` target and the `success`/`failure`/`always` edges
+  (wired in a second pass once every node exists).
+- **Notification Templates** — type, non-secret configuration and custom
+  messages, plus the `started`/`success`/`error` hooks on job templates,
+  workflow templates, projects and inventory sources.
+- **Schedules** — the iCal `rrule`, enabled flag and prompt-on-launch
+  `extra_data`, attached to their job/workflow/project/inventory-source target.
+- **RBAC role assignments** — which users and teams hold which roles. A user
+  grant maps to `role.members.add(user)`; a team grant maps to
+  `role.parents.add(team.member_role)` so the team inherits the role. Singleton
+  system roles (`system_administrator`, `system_auditor`) are applied to the
+  user directly.
 
 ## Idempotency
 
@@ -66,7 +85,9 @@ the literal `$encrypted$`. User passwords are likewise not exported. Therefore:
 
 Plan to re-enter credential secrets in Forail after the import.
 
-## Not yet handled (planned follow-ups)
+## Not imported by design
 
-Workflow Job Templates, Schedules, Notification Templates, Inventory Sources,
-and RBAC role-assignment import are not covered by the current version.
+Job/workflow **run history** and ephemeral execution state are intentionally
+out of scope — this command migrates *configuration*, not job results. Secret
+values (credential inputs, notification tokens) cannot be exported by AWX and
+must be re-entered, as described above.
