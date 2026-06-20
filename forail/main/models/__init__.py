@@ -331,7 +331,13 @@ activity_stream_registrar.connect(TenantQuotaEvent)
 activity_stream_registrar.connect(TenantIsolationEvent)
 
 # Register models
-permission_registry.register(Project, Team, WorkflowJobTemplate, JobTemplate, Inventory, Organization, Credential, NotificationTemplate, ExecutionEnvironment, EventRule, OutboundWebhook, DriftAlertRule, ServiceCatalogItem, Policy, Scanner, ScanResult, ScanFinding, TenantUsage, TenantQuotaEvent, TenantIsolationEvent)
+permission_registry.register(Project, Team, WorkflowJobTemplate, JobTemplate, Inventory, Organization, Credential, NotificationTemplate, ExecutionEnvironment, EventRule, OutboundWebhook, DriftAlertRule, ServiceCatalogItem, Policy, Scanner, ScanResult, TenantUsage, TenantQuotaEvent)
+# ScanFinding and TenantIsolationEvent have no direct `organization` field, so the
+# default parent_field_name='organization' makes DAB's permission validation raise
+# FieldDoesNotExist when walking child models — which breaks ALL role assignment.
+# Register them against their real org-bearing parent instead.
+permission_registry.register(ScanFinding, parent_field_name='scan_result')
+permission_registry.register(TenantIsolationEvent, parent_field_name='accessed_organization')
 permission_registry.register(InstanceGroup, parent_field_name=None)  # Not part of an organization
 
 # prevent API filtering on certain Django-supplied sensitive fields
