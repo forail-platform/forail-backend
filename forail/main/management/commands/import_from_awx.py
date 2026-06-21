@@ -401,7 +401,12 @@ class Command(BaseCommand):
             if inv is None:
                 ctx.warn('Skipping inventory source "%s": its inventory was not imported.' % s.get('name'))
                 continue
-            obj, created = InventorySource.objects.get_or_create(name=s['name'], inventory=inv)
+            # `source` is a required (NOT NULL, no default) field, so it must be
+            # set at creation time — get_or_create's initial INSERT would
+            # otherwise send NULL and fail.
+            obj, created = InventorySource.objects.get_or_create(
+                name=s['name'], inventory=inv,
+                defaults={'source': s.get('source') or 'scm'})
             obj.description = s.get('description', '') or ''
             for f in opt_fields:
                 if s.get(f) is not None:
@@ -479,11 +484,24 @@ class Command(BaseCommand):
             if org is None:
                 ctx.warn('Skipping notification template "%s": its organization was not imported.' % nt.get('name'))
                 continue
-            obj, created = NotificationTemplate.objects.get_or_create(name=nt['name'], organization=org)
+            # The model's save() looks up CLASS_FOR_NOTIFICATION_TYPE[type] and
+            # reads notification_configuration[<password field>] for the type, so
+            # BOTH the type and a config carrying every such key must be present
+            # in the initial INSERT. Keep every config key but blank the secret
+            # ones — AWX sends '$encrypted$' for them and never the real value.
+            ntype = nt.get('notification_type') or 'webhook'
+            config = dict(nt.get('notification_configuration', {}) or {})
+            n_secret = 0
+            for k, v in config.items():
+                if v == '$encrypted$':
+                    config[k] = ''
+                    n_secret += 1
+            obj, created = NotificationTemplate.objects.get_or_create(
+                name=nt['name'], organization=org,
+                defaults={'notification_type': ntype, 'notification_configuration': config})
             obj.description = nt.get('description', '') or ''
-            obj.notification_type = nt.get('notification_type') or obj.notification_type
-            clean_config, n_secret = self._strip_secrets(nt.get('notification_configuration', {}))
-            obj.notification_configuration = clean_config
+            obj.notification_type = ntype
+            obj.notification_configuration = config
             if nt.get('messages'):
                 obj.messages = nt['messages']
             if n_secret:
@@ -543,6 +561,25 @@ class Command(BaseCommand):
         'credential_type': 'credential_type',
     }
 
+    def _guarded_grant(self, ctx, action, desc):
+        """Apply one role grant inside a savepoint, surviving rejections.
+
+        Forail's RBAC (django-ansible-base) enforces rules AWX does not — e.g. an
+        organization-level role cannot be assigned to a team. Such a grant raises
+        and, on PostgreSQL, would poison the surrounding transaction, so each grant
+        runs in its own savepoint and a rejected one is logged and skipped rather
+        than aborting the whole migration.
+        """
+        if ctx.dry_run:
+            ctx.role_grants += 1
+            return
+        try:
+            with transaction.atomic():
+                action()
+            ctx.role_grants += 1
+        except Exception as exc:  # pylint: disable=broad-except
+            ctx.warn('Skipped role grant (%s): %s' % (desc, exc))
+
     def _import_roles(self, client, ctx):
         """Recreate RBAC role assignments (which users/teams hold which roles).
 
@@ -550,6 +587,8 @@ class Command(BaseCommand):
         user; object roles are looked up by ``role_field`` on the imported object.
         Granting a role to a user is ``role.members.add(user)``; granting it to a
         team is ``role.parents.add(team.member_role)`` so the team inherits it.
+        Grants that Forail's RBAC rejects (e.g. an org-level role assigned to a
+        team) are skipped with a warning, not fatal.
         """
         for r in client.get_list('roles'):
             role_field = r.get('role_field')
@@ -586,15 +625,15 @@ class Command(BaseCommand):
             for u in client.get_sub_list('roles', r['id'], 'users'):
                 user = ctx.maps['user'].get(u['id'])
                 if user is not None:
-                    if not ctx.dry_run:
-                        target_role.members.add(user)
-                    ctx.role_grants += 1
+                    self._guarded_grant(
+                        ctx, lambda user=user: target_role.members.add(user),
+                        'user %s -> %s' % (user.username, role_field))
             for t in client.get_sub_list('roles', r['id'], 'teams'):
                 team = ctx.maps['team'].get(t['id'])
                 if team is not None:
-                    if not ctx.dry_run:
-                        target_role.parents.add(team.member_role)
-                    ctx.role_grants += 1
+                    self._guarded_grant(
+                        ctx, lambda team=team: target_role.parents.add(team.member_role),
+                        'team %s -> %s' % (team.name, role_field))
 
     # ----- reporting -------------------------------------------------------
 

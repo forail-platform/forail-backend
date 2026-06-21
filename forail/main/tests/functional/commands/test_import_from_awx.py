@@ -112,6 +112,7 @@ SUB_DATA = {
     ('hosts', 80, 'groups'): [{'id': 70}],
     ('inventory_sources', 90, 'credentials'): [{'id': 40}],
     ('job_templates', 100, 'credentials'): [{'id': 40}],
+    ('job_templates', 100, 'notification_templates_started'): [{'id': 130}],
     ('workflow_job_template_nodes', 120, 'success_nodes'): [{'id': 121}],
     ('roles', 200, 'users'): [{'id': 10}],
     ('roles', 201, 'teams'): [{'id': 20}],
@@ -215,8 +216,8 @@ def test_import_notifications_and_schedule(fake_awx):
 
     org = Organization.objects.get(name='Acme')
     nt = NotificationTemplate.objects.get(name='slack', organization=org)
-    # Secret token stripped; non-secret config retained.
-    assert nt.notification_configuration == {'channels': ['#ops']}
+    # Secret token blanked (needs re-entry); non-secret config retained.
+    assert nt.notification_configuration == {'channels': ['#ops'], 'token': ''}
     jt = JobTemplate.objects.get(name='jt')
     assert nt in jt.notification_templates_started.all()
 
