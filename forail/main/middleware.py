@@ -68,7 +68,18 @@ class RequestContextMiddleware(MiddlewareMixin):
         forwarded = request.META.get('HTTP_X_FORWARDED_FOR', '')
         proxy_allowed = getattr(settings, 'PROXY_IP_ALLOWED_LIST', None) or []
         if forwarded and remote_addr in proxy_allowed:
-            _request_context.ip = forwarded.split(',')[0].strip()
+            # Walk the chain right-to-left, skipping our own trusted proxies, and
+            # take the first hop we do not recognise as the real client. Trusting
+            # the leftmost entry instead is forgeable: a client (even one behind a
+            # trusted proxy) can inject a fake leading IP, but it cannot control
+            # the address its proxy *appends*, which is what we land on here.
+            client_ip = remote_addr
+            for hop in (h.strip() for h in reversed(forwarded.split(','))):
+                if not hop or hop in proxy_allowed:
+                    continue
+                client_ip = hop
+                break
+            _request_context.ip = client_ip
         else:
             _request_context.ip = remote_addr
 
