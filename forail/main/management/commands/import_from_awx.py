@@ -242,7 +242,13 @@ class Command(BaseCommand):
             obj.first_name = u.get('first_name', '') or ''
             obj.last_name = u.get('last_name', '') or ''
             obj.email = u.get('email', '') or ''
-            obj.is_superuser = bool(u.get('is_superuser'))
+            # Only ever grant superuser from the source, never strip it from an
+            # existing local account: re-importing from an AWX whose "admin" is
+            # not a superuser must not silently demote — and potentially lock you
+            # out of — your own Forail bootstrap admin. System-role grants are
+            # (re-)applied in _import_roles.
+            if u.get('is_superuser'):
+                obj.is_superuser = True
             if created:
                 obj.set_unusable_password()
                 ctx.warn('User "%s" created without a password — set one (passwords are not exported by AWX).' % u['username'])
