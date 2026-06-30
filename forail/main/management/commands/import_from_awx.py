@@ -21,6 +21,14 @@ Group hierarchy and host/group membership ARE imported. Job/Workflow execution
 history and ephemeral run state are intentionally NOT imported — this migrates
 configuration, not job results.
 
+Operational note: the whole import runs inside a single database transaction so
+a failure (or --dry-run) rolls back cleanly. Related objects (group children,
+host/group membership, workflow edges, notification hooks, role grants) are wired
+by issuing further AWX API calls *during* that transaction, so on a very large
+source install the transaction stays open across substantial network I/O. Run it
+against a freshly provisioned Forail instance and, if your database enforces an
+idle-in-transaction timeout, raise it for the duration of the migration.
+
 Example:
     forail-manage import_from_awx \\
         --url https://awx.example.com --token $AWX_TOKEN --dry-run
@@ -43,7 +51,7 @@ from forail.main.models.jobs import JobTemplate
 from forail.main.models.workflow import WorkflowJobTemplate, WorkflowJobTemplateNode
 from forail.main.models.notifications import NotificationTemplate
 from forail.main.models.schedules import Schedule
-from forail.main.signals import disable_activity_stream
+from forail.main.signals import disable_activity_stream, disable_computed_fields
 
 logger = logging.getLogger('forail.main.commands.import_from_awx')
 
@@ -169,12 +177,21 @@ class Command(BaseCommand):
         ]
 
         try:
-            with transaction.atomic(), disable_activity_stream():
+            with transaction.atomic(), disable_activity_stream(), disable_computed_fields():
                 for name, fn in steps:
                     if name not in only:
                         continue
                     self.stdout.write('Importing %s ...' % name)
                     fn(client, ctx)
+                # Inventory roll-ups (total_hosts, total_groups, ...) are normally
+                # maintained by post_save signals, which disable_computed_fields()
+                # turns off above so we don't enqueue a recompute task per imported
+                # host. Recompute them once, in-band, now that every host/group/
+                # source exists — otherwise the migrated inventories would report
+                # zero hosts until their next sync.
+                if not ctx.dry_run:
+                    for inv in ctx.maps['inventory'].values():
+                        inv.update_computed_fields()
                 if ctx.dry_run:
                     transaction.set_rollback(True)
         except requests.RequestException as exc:
@@ -225,7 +242,13 @@ class Command(BaseCommand):
             obj.first_name = u.get('first_name', '') or ''
             obj.last_name = u.get('last_name', '') or ''
             obj.email = u.get('email', '') or ''
-            obj.is_superuser = bool(u.get('is_superuser'))
+            # Only ever grant superuser from the source, never strip it from an
+            # existing local account: re-importing from an AWX whose "admin" is
+            # not a superuser must not silently demote — and potentially lock you
+            # out of — your own Forail bootstrap admin. System-role grants are
+            # (re-)applied in _import_roles.
+            if u.get('is_superuser'):
+                obj.is_superuser = True
             if created:
                 obj.set_unusable_password()
                 ctx.warn('User "%s" created without a password — set one (passwords are not exported by AWX).' % u['username'])
