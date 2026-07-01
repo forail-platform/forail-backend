@@ -2,12 +2,13 @@
 
 import logging
 
-from celery import shared_task
+from forail.main.dispatch import get_task_queuename
+from forail.main.dispatch.publish import task
 
 logger = logging.getLogger('forail.main.tasks.tenancy')
 
 
-@shared_task
+@task(queue=get_task_queuename)
 def recalculate_tenant_usage_all():
     """Walk all tenant orgs and refresh their TenantUsage counters."""
     from forail.main.models import Organization
@@ -20,7 +21,7 @@ def recalculate_tenant_usage_all():
             logger.exception('recalculate_tenant_usage failed for org %s', org.pk)
 
 
-@shared_task
+@task(queue=get_task_queuename)
 def ensure_all_tenant_queues():
     """Declare Celery queues for all tenant orgs (idempotent).
 

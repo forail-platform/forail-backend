@@ -26,13 +26,14 @@ def update_active_jobs_gauge():
         logger.debug('update_active_jobs_gauge skipped: %s', e)
 
 
-# Celery-style wrapper, registered lazily from celery_conf.
-try:
-    from celery import shared_task
+# Registered on the beat schedule (celery_conf). Must use the forail dispatch
+# @task decorator — the dispatcher's periodic scheduler rejects any scheduled
+# task that isn't decorated with it ("not decorated with @task()"), which would
+# crash the dispatcher and stall all job processing.
+from forail.main.dispatch import get_task_queuename  # noqa: E402
+from forail.main.dispatch.publish import task  # noqa: E402
 
-    @shared_task
-    def update_active_jobs_gauge_task():  # pragma: no cover
-        update_active_jobs_gauge()
-except Exception:  # pylint: disable=broad-except
-    # Celery may not be available at collectstatic time — that's fine.
-    pass
+
+@task(queue=get_task_queuename)
+def update_active_jobs_gauge_task():  # pragma: no cover
+    update_active_jobs_gauge()
