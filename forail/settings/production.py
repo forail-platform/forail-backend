@@ -34,11 +34,13 @@ ALLOWED_HOSTS = []
 # only used for deprecated fields and management commands for them
 BASE_VENV_PATH = os.path.realpath("/var/lib/awx/venv")
 
-# Very important that this is editable (not read_only) in the API
-AWX_ISOLATION_SHOW_PATHS = [
-    '/etc/pki/ca-trust:/etc/pki/ca-trust:O',
-    '/usr/share/pki:/usr/share/pki:O',
-]
+# Very important that this is editable (not read_only) in the API.
+# These default to RHEL CA-trust bundle paths, but the forail images are built
+# on Ubuntu where they don't exist — mounting a missing path makes podman abort
+# the whole job ("mounting overlay failed ... no such file or directory"). The
+# execution environment already ships its own CA bundle, so default to no extra
+# mounts; operators on RHEL hosts can re-add paths via the API.
+AWX_ISOLATION_SHOW_PATHS = []
 
 # Store a snapshot of default settings at this point before loading any
 # customizable config files.
