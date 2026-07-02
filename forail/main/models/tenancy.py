@@ -12,7 +12,7 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from forail.api.versioning import reverse
-from forail.main.models.base import BaseModel, CreatedModifiedModel
+from forail.main.models.base import CreatedModifiedModel, PrimordialModel
 
 # Re-export pure helpers so ``from forail.main.models.tenancy import ...``
 # still works for the rest of the codebase.
@@ -61,8 +61,14 @@ DECISION_CHOICES = [
 ]
 
 
-class TenantUsage(BaseModel):
-    """One row per tenant Organization tracking rolling counters."""
+class TenantUsage(PrimordialModel):
+    """One row per tenant Organization tracking rolling counters.
+
+    Extends PrimordialModel (not the field-less BaseModel) so the created /
+    modified / created_by / modified_by columns its migration declares are
+    actually populated on save — otherwise the INSERT violates the NOT NULL
+    ``created`` constraint and tenant provisioning fails.
+    """
 
     class Meta:
         app_label = 'main'
