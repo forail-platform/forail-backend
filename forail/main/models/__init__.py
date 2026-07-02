@@ -326,9 +326,10 @@ activity_stream_registrar.connect(ServiceRequest)
 activity_stream_registrar.connect(WebAuthnCredential)
 activity_stream_registrar.connect(Policy)
 activity_stream_registrar.connect(Scanner)
-activity_stream_registrar.connect(TenantUsage)
-activity_stream_registrar.connect(TenantQuotaEvent)
-activity_stream_registrar.connect(TenantIsolationEvent)
+# The tenant models are intentionally NOT activity-stream tracked: ActivityStream
+# has no m2m field for them, so connecting them makes activity_stream_create raise
+# AttributeError on every insert (which broke tenant provisioning). TenantUsage is
+# an internal counter row and the two *Event models are themselves audit records.
 
 # Register models
 permission_registry.register(Project, Team, WorkflowJobTemplate, JobTemplate, Inventory, Organization, Credential, NotificationTemplate, ExecutionEnvironment, EventRule, OutboundWebhook, DriftAlertRule, ServiceCatalogItem, Policy, Scanner, ScanResult, TenantUsage, TenantQuotaEvent)
