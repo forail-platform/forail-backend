@@ -20,6 +20,7 @@ Behaviour matrix:
 """
 
 import logging
+from contextlib import contextmanager
 
 from django.conf import settings
 from django.http import JsonResponse
@@ -31,6 +32,29 @@ from forail.main.tenancy.helpers import (
 )
 
 logger = logging.getLogger('forail.main.tenancy.isolation')
+
+
+# Sentinel returned by target-org resolution: the request targets a covered
+# (org-scoped) resource, but its organization could not be determined. The
+# strict gate must default to DENY on this rather than fail open.
+_DENY_UNRESOLVED = object()
+
+
+@contextmanager
+def _rls_unscoped(restore_org_id):
+    """Temporarily drop the caller's RLS tenant scope, then restore it.
+
+    The strict gate has to *see* cross-tenant objects in order to block them;
+    running the target-org lookup under the caller's own RLS scope would hide
+    exactly the rows we need to detect (an empty/unset tenant id makes all
+    rows visible). We clear the scope for the lookup and reinstate it after.
+    """
+    clear_tenant_id()
+    try:
+        yield
+    finally:
+        if restore_org_id is not None:
+            set_tenant_id(restore_org_id)
 
 
 class TenantIsolationMiddleware:
@@ -48,12 +72,31 @@ class TenantIsolationMiddleware:
         tenant_org = None
         try:
             tenant_org = self._resolve_tenant_org(request)
-            if tenant_org is not None:
-                set_tenant_id(tenant_org.pk)
-                # Stash on request for process_view (strict gate).
-                request._tenant_org = tenant_org
         except Exception:
-            logger.debug('TenantIsolationMiddleware: failed to set tenant id', exc_info=True)
+            # Resolving the user's tenant org failed. A user we cannot place
+            # into a tenant is treated as unscoped (superuser / non-tenant),
+            # which is the pre-existing contract for a None result.
+            logger.debug('TenantIsolationMiddleware: tenant org resolution failed', exc_info=True)
+            tenant_org = None
+
+        if tenant_org is not None:
+            try:
+                set_tenant_id(tenant_org.pk)
+            except Exception:
+                # Fail CLOSED. If we know the request belongs to a tenant but
+                # cannot install the RLS scope, running the request would give
+                # it GLOBAL visibility (RLS treats an unset tenant id as "all
+                # rows"). Abort rather than leak across tenants.
+                logger.exception(
+                    'TenantIsolationMiddleware: could not set tenant id for org=%s '
+                    '— failing closed', getattr(tenant_org, 'pk', None),
+                )
+                return JsonResponse(
+                    {'detail': 'Tenant isolation could not be established.'},
+                    status=500,
+                )
+            # Stash on request for process_view (strict gate).
+            request._tenant_org = tenant_org
 
         try:
             response = self.get_response(request)
@@ -93,15 +136,37 @@ class TenantIsolationMiddleware:
         if tenant_org is None:
             return None
 
+        global_strict = getattr(settings, 'TENANCY_STRICT_ISOLATION_ENABLED', False)
+        user_org_strict = getattr(tenant_org, 'tenant_isolation_strict', False)
+
         # Resolve the organization of the target resource.
         target_org_id = self._resolve_target_org_id(request, view_func, view_kwargs)
+
+        if target_org_id is _DENY_UNRESOLVED:
+            # A covered, org-scoped resource whose organization we could not
+            # resolve. Fail CLOSED when strict isolation is actually in force
+            # for this tenant; otherwise fall through to audit-only allow.
+            if user_org_strict and global_strict:
+                event = self._emit_isolation_event(request, tenant_org, None, True)
+                logger.warning(
+                    'tenant_isolation: BLOCKED (unresolved target org) user=%s org=%s path=%s',
+                    getattr(user, 'pk', None), tenant_org.pk, getattr(request, 'path', ''),
+                )
+                return JsonResponse(
+                    {
+                        'detail': 'Cross-tenant access denied.',
+                        'isolation_event_id': getattr(event, 'pk', None),
+                    },
+                    status=403,
+                )
+            return None
+
         if target_org_id is None:
-            # Cannot determine target org — allow (fail-open for audit).
+            # Not a covered resource (no org-scoped model / object not found) —
+            # nothing to enforce.
             return None
 
         is_cross_tenant = (int(target_org_id) != int(tenant_org.pk))
-        user_org_strict = getattr(tenant_org, 'tenant_isolation_strict', False)
-        global_strict = getattr(settings, 'TENANCY_STRICT_ISOLATION_ENABLED', False)
 
         should_block, should_audit = make_isolation_decision(
             user_org_strict, global_strict, is_cross_tenant,
@@ -171,7 +236,18 @@ class TenantIsolationMiddleware:
         2. If ``organization`` is in kwargs (sub-resource views), use it
            directly.
 
-        Returns an int org_id or None.
+        The object lookup is performed with the caller's RLS scope removed
+        (see ``_rls_unscoped``) so that a genuinely cross-tenant object is
+        visible here — otherwise it would resolve to ``None`` and the strict
+        gate could never fire.
+
+        Returns:
+            - an ``int`` org id when the target org is known,
+            - ``None`` when the target is not an org-scoped resource, the
+              object does not exist, or the resource is global (NULL org),
+            - ``_DENY_UNRESOLVED`` when the target *is* a covered, org-scoped
+              resource but its organization could not be determined (the
+              strict gate must fail closed on this).
         """
         # Strategy A: explicit org in URL kwargs (e.g. /organizations/{pk}/...).
         org_kwarg = view_kwargs.get('organization')
@@ -194,25 +270,42 @@ class TenantIsolationMiddleware:
         if model is None:
             return None
 
-        try:
-            # Direct organization_id on the model.
-            if hasattr(model, 'organization_id') or hasattr(model, 'organization'):
-                obj = model.objects.filter(pk=pk).values_list('organization_id', flat=True).first()
-                if obj is not None:
-                    return int(obj) if obj else None
+        from forail.main.models import Host
+        is_host = model is Host or getattr(model, '__name__', '') == 'Host'
+        is_direct = hasattr(model, 'organization_id') or hasattr(model, 'organization')
+        if not is_direct and not is_host:
+            # Not an org-scoped model — nothing for the strict gate to enforce.
+            return None
 
-            # Indirect: Host → Inventory → Organization.
-            from forail.main.models import Host
-            if model is Host or (hasattr(model, '__name__') and model.__name__ == 'Host'):
+        restore_org_id = getattr(getattr(request, '_tenant_org', None), 'pk', None)
+        try:
+            with _rls_unscoped(restore_org_id):
+                if is_direct:
+                    found = list(
+                        model.objects.filter(pk=pk)
+                        .values_list('organization_id', flat=True)[:1]
+                    )
+                    if not found:
+                        # Object does not exist even unscoped — let the view 404.
+                        return None
+                    org_id = found[0]
+                    # NULL org → global/shared resource, not cross-tenant.
+                    return int(org_id) if org_id else None
+
+                # Indirect: Host → Inventory → Organization.
                 from forail.main.models import Inventory
                 inv_id = Host.objects.filter(pk=pk).values_list('inventory_id', flat=True).first()
-                if inv_id:
-                    org_id = Inventory.objects.filter(pk=inv_id).values_list('organization_id', flat=True).first()
-                    return int(org_id) if org_id else None
+                if inv_id is None:
+                    return None
+                org_id = Inventory.objects.filter(pk=inv_id).values_list('organization_id', flat=True).first()
+                return int(org_id) if org_id else None
         except Exception:
-            logger.debug('_resolve_target_org_id: lookup failed', exc_info=True)
-
-        return None
+            # Covered resource, but org resolution errored — fail CLOSED.
+            logger.warning(
+                '_resolve_target_org_id: lookup failed for covered model %s pk=%s — denying',
+                getattr(model, '__name__', model), pk, exc_info=True,
+            )
+            return _DENY_UNRESOLVED
 
     @staticmethod
     def _emit_isolation_event(request, user_org, target_org_id, blocked):
@@ -223,7 +316,7 @@ class TenantIsolationMiddleware:
             event = TenantIsolationEvent.objects.create(
                 user=user if getattr(user, 'is_authenticated', False) else None,
                 user_organization=user_org,
-                accessed_organization_id=int(target_org_id),
+                accessed_organization_id=int(target_org_id) if target_org_id is not None else None,
                 resource_type=_get_resource_type(request),
                 resource_id=_get_resource_id(request),
                 request_path=getattr(request, 'path', '')[:1024],
