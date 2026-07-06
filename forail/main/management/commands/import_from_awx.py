@@ -36,6 +36,7 @@ Example:
 
 import json
 import logging
+import os
 
 import requests
 
@@ -128,23 +129,56 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('--url', required=True, help='Base URL of the source AWX install, e.g. https://awx.example.com')
-        parser.add_argument('--token', help='OAuth2 token for the source AWX API (preferred).')
-        parser.add_argument('--username', help='Username for basic auth (if no token).')
-        parser.add_argument('--password', help='Password for basic auth (if no token).')
+        parser.add_argument('--token', help='OAuth2 token for the source AWX API (preferred). '
+                                            'Prefer the AWX_TOKEN env var — CLI args are visible in ps/proc.')
+        parser.add_argument('--username', help='Username for basic auth (if no token). Env: AWX_USERNAME.')
+        parser.add_argument('--password', help='Password for basic auth (if no token). '
+                                               'Prefer the AWX_PASSWORD env var — CLI args are visible in ps/proc.')
         parser.add_argument('--insecure', action='store_true', help='Do not verify the source TLS certificate.')
         parser.add_argument('--dry-run', action='store_true', help='Fetch and report what would change, then roll back without writing.')
+        parser.add_argument('--grant-superusers', action='store_true',
+                            help='Honour is_superuser / system_administrator / system_auditor from the source. '
+                                 'OFF by default: superuser promotion from a remote source is a privilege-escalation '
+                                 'vector, so these grants are skipped and reported unless you opt in explicitly.')
+        parser.add_argument('--trust-injectors', action='store_true',
+                            help='Import custom credential-type injectors verbatim. OFF by default: injector templates '
+                                 'render into env/extra-vars/files at job-execution time, so an untrusted source could '
+                                 'ship an injector that runs attacker code. Without this flag the type is imported '
+                                 'without its injectors and an admin must re-approve them.')
         parser.add_argument('--resource', action='append', choices=RESOURCE_ORDER,
                             help='Limit to specific resource type(s); may be repeated. Default: all.')
 
     def handle(self, *args, **options):
-        if not options.get('token') and not options.get('username'):
-            raise CommandError('Provide --token, or --username/--password.')
+        # M3: prefer secrets from the environment; CLI args leak via ps/proc,
+        # shell history and process accounting.
+        token = options.get('token') or os.environ.get('AWX_TOKEN')
+        username = options.get('username') or os.environ.get('AWX_USERNAME')
+        password = options.get('password') or os.environ.get('AWX_PASSWORD')
+        if options.get('token') or options.get('password'):
+            self.stderr.write(self.style.WARNING(
+                'Passing --token/--password on the command line is insecure (visible in '
+                'ps/proc and shell history). Prefer AWX_TOKEN / AWX_PASSWORD env vars.'))
+
+        if not token and not username:
+            raise CommandError('Provide a token (--token or AWX_TOKEN), or a username '
+                               '(--username/AWX_USERNAME with --password/AWX_PASSWORD).')
+
+        # L1: --insecure sends the token / basic-auth credentials over a
+        # connection with no certificate verification.
+        if options.get('insecure'):
+            self.stderr.write(self.style.WARNING(
+                '--insecure disables TLS verification; credentials are sent over an '
+                'unauthenticated channel. Use only against a trusted network.'))
+
+        # M1/M2: carry the trust opt-ins on the context so importers can gate.
+        self.grant_superusers = options.get('grant_superusers', False)
+        self.trust_injectors = options.get('trust_injectors', False)
 
         client = AWXClient(
             options['url'],
-            token=options.get('token'),
-            username=options.get('username'),
-            password=options.get('password'),
+            token=token,
+            username=username,
+            password=password,
             verify=not options.get('insecure'),
         )
         # Fail fast on connectivity / auth before opening a transaction.
@@ -247,8 +281,19 @@ class Command(BaseCommand):
             # not a superuser must not silently demote — and potentially lock you
             # out of — your own Forail bootstrap admin. System-role grants are
             # (re-)applied in _import_roles.
+            #
+            # M1: superuser is a remote-controlled privilege-escalation vector.
+            # A compromised/malicious source could flag arbitrary usernames as
+            # superusers. Gate it behind an explicit --grant-superusers opt-in
+            # and log every promotion loudly.
             if u.get('is_superuser'):
-                obj.is_superuser = True
+                if self.grant_superusers:
+                    if not obj.is_superuser:
+                        ctx.warn('GRANTING superuser to "%s" from source (--grant-superusers).' % u['username'])
+                    obj.is_superuser = True
+                else:
+                    ctx.warn('Skipped superuser grant for "%s" (source flagged it superuser; '
+                             'pass --grant-superusers to honour it).' % u['username'])
             if created:
                 obj.set_unusable_password()
                 ctx.warn('User "%s" created without a password — set one (passwords are not exported by AWX).' % u['username'])
@@ -278,7 +323,18 @@ class Command(BaseCommand):
             obj.description = ct.get('description', '') or ''
             obj.kind = ct.get('kind', obj.kind)
             obj.inputs = ct.get('inputs', {}) or {}
-            obj.injectors = ct.get('injectors', {}) or {}
+            # M2: a custom credential type's injectors are rendered into env
+            # vars / extra-vars / files at job-execution time. Importing them
+            # verbatim from an untrusted source is a post-migration RCE vector.
+            # Skip injectors unless the operator explicitly trusts the source;
+            # an admin re-approves the injector bodies afterwards.
+            source_injectors = ct.get('injectors', {}) or {}
+            if source_injectors and not self.trust_injectors:
+                obj.injectors = {}
+                ctx.warn('Credential type "%s": injectors NOT imported (re-approve manually, '
+                         'or re-run with --trust-injectors).' % ct['name'])
+            else:
+                obj.injectors = source_injectors
             self._save(ctx, 'credential_type', obj, created)
             ctx.maps['credential_type'][ct['id']] = obj
 
@@ -626,10 +682,18 @@ class Command(BaseCommand):
                     user = ctx.maps['user'].get(u['id'])
                     if user is None:
                         continue
-                    if role_field == 'system_administrator':
-                        user.is_superuser = True
-                    elif role_field == 'system_auditor':
-                        user.is_system_auditor = True
+                    # M1: gate remote system-role promotion behind opt-in.
+                    if role_field in ('system_administrator', 'system_auditor'):
+                        if not self.grant_superusers:
+                            ctx.warn('Skipped %s grant for "%s" (pass --grant-superusers to honour it).'
+                                     % (role_field, user.username))
+                            continue
+                        if role_field == 'system_administrator':
+                            ctx.warn('GRANTING system_administrator (superuser) to "%s".' % user.username)
+                            user.is_superuser = True
+                        else:
+                            ctx.warn('GRANTING system_auditor to "%s".' % user.username)
+                            user.is_system_auditor = True
                     else:
                         continue
                     if not ctx.dry_run:
