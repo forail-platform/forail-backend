@@ -233,7 +233,19 @@ def tenant_queue_name(org_id):
 # tables or via a subquery for indirect relationships.
 #
 # Tables with nullable organization_id are included; the RLS policy handles
-# NULLs by treating them as "visible to everyone" (no tenant scope).
+# NULLs by treating them as "visible to everyone" (no tenant scope). This is
+# intentional for AWX's genuinely global, org-less resources (a credential or
+# label created with organization=NULL is shared platform-wide). Do NOT add a
+# table here whose rows are always tenant-owned unless it forbids NULL org, or
+# those NULL rows would leak across every tenant (see needtofix M5).
+#
+# Coverage note (needtofix M4): several models that *look* org-scoped
+# (Project, WorkflowJobTemplate, Schedule, workflow nodes, job events) do not
+# carry their own organization_id column — AWX 3.7 (migration 0109) moved it
+# onto the shared parent main_unifiedjobtemplate / main_unifiedjob, both of
+# which ARE covered below. Django multi-table inheritance always joins that
+# parent when querying the child, so those rows are filtered by the parent
+# policy. Only tables with their own organization_id column belong here.
 
 RLS_TABLES_DIRECT = [
     # Core resources
@@ -250,6 +262,7 @@ RLS_TABLES_DIRECT = [
     # EDA
     ('main_eventrule', 'organization_id'),
     ('main_outboundwebhook', 'organization_id'),
+    ('main_eventlog', 'organization_id'),  # needtofix M4: has own org column, was uncovered
     # Drift detection
     ('main_hostfactsnapshot', 'organization_id'),
     ('main_driftdetection', 'organization_id'),

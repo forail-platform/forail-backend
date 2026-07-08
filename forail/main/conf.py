@@ -1197,6 +1197,16 @@ register(
 )
 
 # --- Multi-Tenancy v2 settings -----------------------------------------------
+#
+# needtofix M16: every tenant-isolation control below defaults to False, so a
+# deployment gets NO cross-tenant enforcement until each flag is turned on. A
+# multi-tenant install MUST enable, at minimum:
+#     TENANCY_ENABLED=True, TENANCY_RLS_ENABLED=True
+# and, for hard cross-tenant blocking (vs audit-only):
+#     TENANCY_STRICT_ISOLATION_ENABLED=True  (plus per-org tenant_isolation_strict)
+# Rate limiting and dedicated queues are opt-in performance/abuse controls.
+# The defaults stay False to preserve single-tenant backwards compatibility;
+# the deployment docs call out the required enablement set for tenants.
 
 register(
     'TENANCY_RLS_ENABLED',
