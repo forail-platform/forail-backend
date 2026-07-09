@@ -14,13 +14,20 @@ ROLE_SINGLETON_TEAM_RELATIONSHIP = ''
 ROLE_BYPASS_SUPERUSER_FLAGS = ['is_superuser']
 ROLE_BYPASS_ACTION_FLAGS = {'view': 'is_system_auditor'}
 
+# needtofix M7: 'social_core.pipeline.social_auth.associate_by_email' is
+# intentionally NOT in this pipeline. Associating an SSO login to an existing
+# local account purely by matching email address enables cross-IdP account
+# takeover: if any configured IdP does not verify email ownership, a user who
+# registers admin@company.com there can log in as the existing admin account.
+# Accounts are associated by provider UID instead. Operators who trust every
+# configured IdP to assert verified emails may re-add associate_by_email after
+# get_username via a settings override.
 _SOCIAL_AUTH_PIPELINE_BASE = (
     'social_core.pipeline.social_auth.social_details',
     'social_core.pipeline.social_auth.social_uid',
     'social_core.pipeline.social_auth.auth_allowed',
     'social_core.pipeline.social_auth.social_user',
     'social_core.pipeline.user.get_username',
-    'social_core.pipeline.social_auth.associate_by_email',
     'social_core.pipeline.user.create_user',
     'forail.sso.social_base_pipeline.check_user_found_or_created',
     'social_core.pipeline.social_auth.associate_user',
