@@ -1252,6 +1252,21 @@ register(
 )
 
 register(
+    'TENANCY_RATE_LIMIT_FAIL_CLOSED',
+    field_class=fields.BooleanField,
+    default=False,
+    label=_('Rate Limiter Fails Closed'),
+    help_text=_(
+        'When True, tenant API requests are rejected with HTTP 503 if the '
+        'rate-limiter backend (Redis) is unavailable, instead of being allowed '
+        'through (fail-open). Defaults to False to keep the API available '
+        'during a Redis outage.'
+    ),
+    category=_('System'),
+    category_slug='system',
+)
+
+register(
     'TENANCY_DEFAULT_API_RATE_LIMIT',
     field_class=fields.IntegerField,
     default=0,

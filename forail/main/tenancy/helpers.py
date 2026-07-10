@@ -297,14 +297,19 @@ def build_rls_policy_sql(table, org_column='organization_id'):
        compatible for non-tenant requests and superusers).
     """
     policy_name = f'tenant_isolation_{table}'
+    # L6: wrap the GUC in NULLIF(...,'')::int rather than casting the raw
+    # setting. An empty string ('' — the "no tenant scope" sentinel) would
+    # raise on ::int; Postgres does not guarantee the '' guard short-circuits
+    # before the cast is evaluated. NULLIF collapses '' to NULL, which casts
+    # cleanly and is caught by the IS NULL branch (→ all rows visible).
+    tenant = "NULLIF(current_setting('forail.current_tenant_id', true), '')"
     create = (
         f'CREATE POLICY {policy_name} ON {table} '
         f'AS PERMISSIVE FOR ALL '
         f'USING ('
-        f'{org_column} = current_setting(\'forail.current_tenant_id\', true)::int '
+        f'{org_column} = {tenant}::int '
         f'OR {org_column} IS NULL '
-        f'OR current_setting(\'forail.current_tenant_id\', true) IS NULL '
-        f'OR current_setting(\'forail.current_tenant_id\', true) = \'\''
+        f'OR {tenant} IS NULL'
         f');'
     )
     drop = f'DROP POLICY IF EXISTS {policy_name} ON {table};'
@@ -317,18 +322,18 @@ def build_rls_policy_sql_indirect(table, fk_column, parent_table, parent_org_col
     Uses a subquery to resolve the organization from a parent table.
     """
     policy_name = f'tenant_isolation_{table}'
+    tenant = "NULLIF(current_setting('forail.current_tenant_id', true), '')"
     create = (
         f'CREATE POLICY {policy_name} ON {table} '
         f'AS PERMISSIVE FOR ALL '
         f'USING ('
         f'{fk_column} IN ('
         f'SELECT id FROM {parent_table} WHERE '
-        f'{parent_org_column} = current_setting(\'forail.current_tenant_id\', true)::int '
+        f'{parent_org_column} = {tenant}::int '
         f'OR {parent_org_column} IS NULL'
         f') '
         f'OR {fk_column} IS NULL '
-        f'OR current_setting(\'forail.current_tenant_id\', true) IS NULL '
-        f'OR current_setting(\'forail.current_tenant_id\', true) = \'\''
+        f'OR {tenant} IS NULL'
         f');'
     )
     drop = f'DROP POLICY IF EXISTS {policy_name} ON {table};'
