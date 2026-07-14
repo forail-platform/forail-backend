@@ -17,11 +17,20 @@ forail-manage import_from_awx \
 | Option                  | Description                                                            |
 | ----------------------- | ---------------------------------------------------------------------- |
 | `--url`                 | Base URL of the source AWX install (required).                         |
-| `--token`               | OAuth2 token for the source AWX API (preferred auth).                  |
-| `--username/--password` | Basic auth, if no token.                                               |
+| `--token`               | OAuth2 token for the source AWX API (preferred auth). Prefer `AWX_TOKEN` env. |
+| `--username/--password` | Basic auth, if no token. Prefer `AWX_USERNAME` / `AWX_PASSWORD` env.   |
 | `--insecure`            | Skip source TLS certificate verification.                              |
 | `--dry-run`             | Fetch and report what would change, then roll back without writing.    |
+| `--grant-superusers`    | Honour `is_superuser` / system-role grants from the source (**off** by default). |
+| `--trust-injectors`     | Import custom credential-type injectors verbatim (**off**; else re-approve). |
 | `--resource <type>`     | Limit to specific resource type(s); repeatable. Default: all.          |
+
+> **The source is treated as untrusted by default.** Superuser promotion and
+> custom credential-type injectors (which render into env/extra-vars/files at
+> job-execution time) are **not** applied unless you opt in with
+> `--grant-superusers` / `--trust-injectors`. Pass secrets via `AWX_TOKEN` /
+> `AWX_PASSWORD` environment variables rather than the command line, where they
+> would be visible in `ps` / `/proc`.
 
 Resource types (and import order): `organizations`, `users`, `teams`,
 `credential_types`, `credentials`, `projects`, `inventories`, `groups`,
