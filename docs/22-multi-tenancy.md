@@ -210,6 +210,41 @@ All four live under the **System** category and show up in
 
 ---
 
+## Security posture (v2 hardening)
+
+The v2 isolation stack is designed to **fail closed** and is off by default so
+single-tenant installs are unaffected. A multi-tenant deployment enables at
+least `TENANCY_ENABLED` + `TENANCY_RLS_ENABLED`, plus
+`TENANCY_STRICT_ISOLATION_ENABLED` for hard cross-tenant blocking.
+
+- **RLS gate fails closed.** If the per-request Postgres tenant scope cannot be
+  installed, the request is aborted (HTTP 500) rather than run with global row
+  visibility (an unset scope makes RLS treat all rows as visible).
+- **Strict gate sees cross-tenant objects.** The 403 gate resolves the target
+  resource's organization with the caller's RLS scope removed — otherwise a
+  genuinely cross-tenant object is invisible to the lookup and could never be
+  blocked. When a covered resource's org can't be determined, it defaults to
+  **deny**.
+- **RLS coverage.** Every table with its own `organization_id` has a policy
+  (including `main_eventlog`); child tables of `main_unifiedjobtemplate` /
+  `main_unifiedjob` (projects, workflow templates, schedules, nodes, job events)
+  are covered indirectly through the parent via the multi-table-inheritance join.
+  Policies cast the tenant GUC as `NULLIF(current_setting(...), '')::int` so the
+  empty "no scope" sentinel can't raise.
+- **Rate limiter** logs Redis outages loudly and can be made to fail closed with
+  `TENANCY_RATE_LIMIT_FAIL_CLOSED` (default open, favouring availability).
+- **Provisioning** refuses to silently reuse an existing username (which would
+  discard the supplied password and cross-link accounts) unless
+  `attach_existing_admin` is set.
+
+| Key                                | Default | Notes                                                     |
+| ---------------------------------- | ------- | --------------------------------------------------------- |
+| `TENANCY_RLS_ENABLED`              | `False` | Install the per-request RLS tenant scope                  |
+| `TENANCY_STRICT_ISOLATION_ENABLED` | `False` | Block (403) cross-tenant access instead of audit-only     |
+| `TENANCY_RATE_LIMIT_FAIL_CLOSED`   | `False` | Reject (503) when the rate-limiter Redis is down          |
+
+---
+
 ## REST API
 
 All `/api/v2/tenants/*` endpoints require `is_superuser`. `/api/v2/branding/`

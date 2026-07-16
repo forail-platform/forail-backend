@@ -213,14 +213,14 @@ class TestBuildRlsPolicySql(unittest.TestCase):
 
     def test_create_contains_org_column(self):
         create, _ = build_rls_policy_sql('main_inventory', 'organization_id')
-        self.assertIn('organization_id = current_setting', create)
+        # needtofix L6: the GUC is wrapped in NULLIF(...,'')::int so the empty
+        # "no scope" sentinel can't raise on the cast.
+        self.assertIn("organization_id = NULLIF(current_setting", create)
 
     def test_create_contains_bypass_clauses(self):
         create, _ = build_rls_policy_sql('main_inventory', 'organization_id')
-        # Bypass when session var is NULL
-        self.assertIn("IS NULL", create)
-        # Bypass when session var is empty string
-        self.assertIn("= ''", create)
+        # Bypass when session var is unset/empty — NULLIF('') collapses to NULL.
+        self.assertIn("NULLIF(current_setting('forail.current_tenant_id', true), '') IS NULL", create)
         # Bypass when org column is NULL (shared resources)
         self.assertIn('organization_id IS NULL', create)
 
@@ -262,7 +262,8 @@ class TestBuildRlsPolicySqlIndirect(unittest.TestCase):
             'main_host', 'inventory_id', 'main_inventory', 'organization_id'
         )
         self.assertIn("IS NULL", create)
-        self.assertIn("= ''", create)
+        # needtofix L6: NULLIF-guarded empty/unset sentinel (was `= ''`).
+        self.assertIn("NULLIF(current_setting('forail.current_tenant_id', true), '') IS NULL", create)
 
     def test_drop_contains_policy_name(self):
         _, drop = build_rls_policy_sql_indirect(

@@ -60,7 +60,17 @@ def _resolve_target(unified_job, resource_type, project_path, tool_name):
         playbook = getattr(unified_job, 'playbook', '') or ''
         if not playbook:
             return None
-        return os.path.join(project_path, playbook)
+        # M15: ``playbook`` is a user-editable JobTemplate field. An absolute
+        # value makes os.path.join discard project_path, and ``..`` segments
+        # escape the checkout — the scanner would then run against arbitrary
+        # host paths (/etc/…) and leak fragments into ScanResult output.
+        # Resolve and confirm the target stays inside project_path.
+        base = os.path.realpath(project_path)
+        target = os.path.realpath(os.path.join(base, playbook))
+        if target != base and not target.startswith(base + os.sep):
+            logger.warning('scan target %r escapes project path %r — refusing', playbook, project_path)
+            return None
+        return target
     if resource_type == 'ad_hoc_command':
         if tool_name == 'ansible-lint':
             return None

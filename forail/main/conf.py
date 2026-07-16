@@ -1197,6 +1197,16 @@ register(
 )
 
 # --- Multi-Tenancy v2 settings -----------------------------------------------
+#
+# needtofix M16: every tenant-isolation control below defaults to False, so a
+# deployment gets NO cross-tenant enforcement until each flag is turned on. A
+# multi-tenant install MUST enable, at minimum:
+#     TENANCY_ENABLED=True, TENANCY_RLS_ENABLED=True
+# and, for hard cross-tenant blocking (vs audit-only):
+#     TENANCY_STRICT_ISOLATION_ENABLED=True  (plus per-org tenant_isolation_strict)
+# Rate limiting and dedicated queues are opt-in performance/abuse controls.
+# The defaults stay False to preserve single-tenant backwards compatibility;
+# the deployment docs call out the required enablement set for tenants.
 
 register(
     'TENANCY_RLS_ENABLED',
@@ -1236,6 +1246,21 @@ register(
     help_text=_(
         'Enable token-bucket rate limiting per tenant. '
         'Requires Redis and TENANCY_ENABLED=True.'
+    ),
+    category=_('System'),
+    category_slug='system',
+)
+
+register(
+    'TENANCY_RATE_LIMIT_FAIL_CLOSED',
+    field_class=fields.BooleanField,
+    default=False,
+    label=_('Rate Limiter Fails Closed'),
+    help_text=_(
+        'When True, tenant API requests are rejected with HTTP 503 if the '
+        'rate-limiter backend (Redis) is unavailable, instead of being allowed '
+        'through (fail-open). Defaults to False to keep the API available '
+        'during a Redis outage.'
     ),
     category=_('System'),
     category_slug='system',

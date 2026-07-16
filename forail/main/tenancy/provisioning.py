@@ -46,17 +46,30 @@ def provision_tenant(payload):
         tenant_contact_email=payload.get('contact_email', '') or '',
     )
 
-    # Admin user. If the username already exists, reuse it rather than crash.
+    # Admin user.
+    #
+    # M6: refuse to silently reuse an existing username. Doing so both (a)
+    # discards the supplied password (get_or_create only set it on create) and
+    # (b) grants that pre-existing account — possibly another tenant's admin —
+    # membership in this new org. Require an explicit attach_existing_admin
+    # opt-in, and never accept a password we would throw away.
     admin_username = payload['admin_username']
     admin_email = payload['admin_email']
     admin_password = payload['admin_password']
-    user, created = User.objects.get_or_create(
-        username=admin_username,
-        defaults={'email': admin_email, 'is_active': True},
-    )
-    if created:
+    attach_existing = bool(payload.get('attach_existing_admin', False))
+
+    existing = User.objects.filter(username=admin_username).first()
+    if existing is not None:
+        if not attach_existing:
+            raise ProvisioningError([
+                f'admin_username "{admin_username}" already exists; refusing to attach an '
+                f'existing account to a new tenant. Pass attach_existing_admin=true to '
+                f'intentionally reuse it (the supplied admin_password is then ignored).'
+            ])
+        user = existing
+    else:
+        user = User.objects.create(username=admin_username, email=admin_email, is_active=True)
         user.set_password(admin_password)
-        user.email = admin_email
         user.save()
 
     # Grant admin role on the new Organization. Best-effort — role API may vary.

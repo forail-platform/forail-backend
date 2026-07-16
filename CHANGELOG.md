@@ -43,6 +43,29 @@ and the project adheres to CalVer (`YYYY.MM.PATCH`).
 - Removed dead, unregistered `ForailOIDCAuth` backend to avoid implying a second
   active OIDC backend. OIDC is handled by `social_core`'s `OpenIdConnectAuth`,
   whose requests honor `SOCIAL_AUTH_OIDC_VERIFY_SSL` (verified).
+- **Tenant isolation fails closed**: the RLS middleware now aborts a request
+  (HTTP 500) if it cannot install the tenant scope, instead of proceeding with
+  global row visibility. The strict-isolation gate resolves the target org with
+  the caller's RLS scope removed (so cross-tenant objects are actually visible)
+  and defaults to deny when a covered resource's org cannot be determined.
+- **RLS coverage + robustness**: added a policy for `main_eventlog` (it carries
+  its own `organization_id`); RLS policies now cast the tenant GUC via
+  `NULLIF(current_setting(...), '')::int` so the empty "no scope" sentinel can't
+  raise. New migrations `0209`, `0210` (idempotent).
+- **`import_from_awx` trust boundary**: superuser / system-role promotion from
+  the source is gated behind `--grant-superusers` (off by default, logged);
+  custom credential-type injectors are dropped for admin re-approval unless
+  `--trust-injectors` is given; secrets are read from `AWX_TOKEN` / `AWX_PASSWORD`
+  in preference to argv.
+- **SSO account-takeover fix**: `associate_by_email` removed from the auth
+  pipeline — accounts associate by provider UID, not by matching email address.
+- **Tenant provisioning** refuses to silently reuse an existing username (which
+  discarded the supplied password and cross-linked accounts) unless
+  `attach_existing_admin` is set.
+- **IaC scanner path traversal**: a job template's `playbook` field can no
+  longer point the scanner outside the project checkout (absolute / `..`).
+- **Rate limiter** logs Redis outages loudly and honours a new
+  `TENANCY_RATE_LIMIT_FAIL_CLOSED` setting (default open for availability).
 
 ### Fixed
 - `pytest.ini` pointed `DJANGO_SETTINGS_MODULE` at the pre-rename

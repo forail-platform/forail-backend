@@ -109,6 +109,36 @@ Access via API: `/api/v2/settings/`
 | `LOG_AGGREGATOR_ENABLED` | `False`   | Enable log forwarding                       |
 | `LOG_AGGREGATOR_LEVEL`   | `WARNING` | Minimum level                               |
 
+### Multi-tenancy & isolation (`/api/v2/settings/system/`)
+
+Every isolation control is **off by default** to preserve single-tenant
+backwards compatibility. A multi-tenant deployment must enable at least
+`TENANCY_ENABLED` + `TENANCY_RLS_ENABLED`, and `TENANCY_STRICT_ISOLATION_ENABLED`
+for hard cross-tenant blocking (vs audit-only).
+
+| Setting                             | Default | Description                                                        |
+| ----------------------------------- | ------- | ------------------------------------------------------------------ |
+| `TENANCY_ENABLED`                   | `False` | Master switch for the multi-tenancy feature set                    |
+| `TENANCY_RLS_ENABLED`               | `False` | Set the per-request Postgres RLS tenant scope                      |
+| `TENANCY_STRICT_ISOLATION_ENABLED`  | `False` | Block cross-tenant API access (HTTP 403) instead of audit-only     |
+| `TENANCY_RATE_LIMITING_ENABLED`     | `False` | Per-tenant token-bucket API rate limiting (needs Redis)            |
+| `TENANCY_RATE_LIMIT_FAIL_CLOSED`    | `False` | Reject requests (503) if the rate-limiter Redis is down, vs allow  |
+| `TENANCY_DEDICATED_QUEUES_ENABLED`  | `False` | Route tenant jobs to dedicated `tenant-{org_id}` Celery queues     |
+
+> When RLS is on, tenant isolation **fails closed**: if the tenant scope cannot
+> be installed for a request, the request is aborted rather than run with global
+> row visibility.
+
+### `import_from_awx` security flags
+
+The AWX importer treats the source as untrusted by default:
+
+| Flag                 | Effect                                                                     |
+| -------------------- | -------------------------------------------------------------------------- |
+| `--grant-superusers` | Honour `is_superuser` / system-role grants from the source (off by default) |
+| `--trust-injectors`  | Import custom credential-type injectors verbatim (off; else re-approve)     |
+| `AWX_TOKEN` / `AWX_PASSWORD` | Preferred over `--token` / `--password` (argv leaks via `ps`/`/proc`) |
+
 ---
 
 ## Common Configuration Tasks

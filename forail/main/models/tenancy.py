@@ -141,6 +141,9 @@ class TenantQuotaEvent(CreatedModifiedModel):
         related_name='tenant_quota_events',
     )
     message = models.TextField(blank=True, default='')
+    # migration 0205 declares this column NOT NULL (default ''); CreatedModifiedModel
+    # does not provide it, so it must be defined here or inserts fail.
+    description = models.TextField(blank=True, default='')
 
     def get_absolute_url(self, request=None):
         return reverse('api:tenant_quota_event_detail', kwargs={'pk': self.pk}, request=request)
@@ -185,6 +188,10 @@ class TenantIsolationEvent(CreatedModifiedModel):
     resource_id = models.PositiveIntegerField(null=True, blank=True)
     request_path = models.CharField(max_length=1024, blank=True, default='')
     blocked = models.BooleanField(default=False)
+    # migration 0205 declares this column NOT NULL (default ''); CreatedModifiedModel
+    # does not provide it, so it must be defined here or inserts fail (which is
+    # exactly what the strict gate hit once it started blocking).
+    description = models.TextField(blank=True, default='')
 
     def get_absolute_url(self, request=None):
         return reverse('api:tenant_isolation_event_detail', kwargs={'pk': self.pk}, request=request)

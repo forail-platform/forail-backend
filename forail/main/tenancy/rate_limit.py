@@ -80,12 +80,30 @@ class TenantRateLimitMiddleware:
         if max_tokens <= 0:
             return self.get_response(request)
 
+        # L7: the limiter's behaviour when Redis is unavailable is a conscious
+        # trade-off. It fails OPEN by default (an outage must not take the whole
+        # API down), but operators who prefer availability-of-isolation over
+        # availability-of-service can set TENANCY_RATE_LIMIT_FAIL_CLOSED=True to
+        # return 503 instead. Either way the outage is logged loudly, not
+        # swallowed at debug level.
+        fail_closed = getattr(settings, 'TENANCY_RATE_LIMIT_FAIL_CLOSED', False)
+
+        def _on_redis_unavailable(reason):
+            if fail_closed:
+                logger.warning('rate_limit: Redis unavailable (%s) — failing CLOSED (503) org=%s',
+                               reason, tenant_org.pk)
+                return JsonResponse(
+                    {'detail': 'Rate limiter temporarily unavailable.'}, status=503,
+                )
+            logger.warning('rate_limit: Redis unavailable (%s) — failing open, throttle bypassed org=%s',
+                           reason, tenant_org.pk)
+            return self.get_response(request)
+
         # Check the bucket.
         try:
             redis_client = _get_redis()
             if redis_client is None:
-                # Fail-open: if Redis is unavailable, allow the request.
-                return self.get_response(request)
+                return _on_redis_unavailable('no client')
 
             sha = _ensure_script(redis_client)
             key = f'tenant_ratelimit:{tenant_org.pk}'
@@ -115,7 +133,7 @@ class TenantRateLimitMiddleware:
                 return response
 
         except Exception:
-            # Fail-open: on any Redis error, allow the request.
-            logger.debug('rate_limit: Redis error, allowing request', exc_info=True)
+            logger.warning('rate_limit: Redis error', exc_info=True)
+            return _on_redis_unavailable('redis error')
 
         return self.get_response(request)

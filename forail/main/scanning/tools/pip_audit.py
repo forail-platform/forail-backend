@@ -6,18 +6,29 @@ which for Forail's threat model are always significant.
 """
 
 import json
+import logging
+import os
 
 from forail.main.scanning.types import NormalizedFinding
 
 TOOL_NAME = 'pip-audit'
+
+logger = logging.getLogger('forail.main.scanning.tools.pip_audit')
 
 
 def build_command(target_path, config):
     cmd = ['pip-audit', '--format', 'json']
     requirements = target_path
     if config and isinstance(config, dict):
-        if config.get('requirements'):
-            requirements = config['requirements']
+        override = config.get('requirements')
+        # L9: the admin-set requirements override is used as the -r path. Reject
+        # ../ traversal so it can't be pointed outside the checkout (admin-only,
+        # low impact, but no reason to leave the escape open).
+        if override:
+            if os.path.isabs(override) or '..' in override.replace('\\', '/').split('/'):
+                logger.warning('pip-audit: ignoring unsafe requirements override %r', override)
+            else:
+                requirements = override
     cmd.extend(['-r', requirements])
     return cmd
 
