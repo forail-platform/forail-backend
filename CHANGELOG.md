@@ -68,6 +68,13 @@ and the project adheres to CalVer (`YYYY.MM.PATCH`).
   `TENANCY_RATE_LIMIT_FAIL_CLOSED` setting (default open for availability).
 
 ### Fixed
+- **Tenancy audit events could never be written.** Migration `0205` declares a
+  `NOT NULL description` column on `TenantQuotaEvent` and `TenantIsolationEvent`,
+  but both models extend `CreatedModifiedModel`, which does not provide that
+  field — so every insert raised `IntegrityError` and the event was lost. The
+  field is now declared on both models (matching the existing migration state; no
+  new migration). Surfaced once the strict isolation gate started actually
+  blocking cross-tenant reads and tried to record them.
 - `pytest.ini` pointed `DJANGO_SETTINGS_MODULE` at the pre-rename
   `awx.main.tests.settings_for_test`, which no longer exists — the test suite
   could not start. Corrected to `forail.main.tests.settings_for_test`.
