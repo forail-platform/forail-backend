@@ -56,9 +56,51 @@ jobs:
       - uses: actions/checkout@v4
       - name: Log in to GitHub Container Registry
         run: echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-      - name: Build and push image
+      - name: Build image
         run: |
           IMAGE=ghcr.io/${{ github.repository }}
           VERSION=${GITHUB_REF_NAME#v}
           docker build -t "$IMAGE:$VERSION" .
+
+      # The `test` job above runs only tests_standalone/, which stub Django out.
+      # The Django functional tests need the whole application importable, and
+      # the image is the one place where it already is -- installing the full
+      # requirements on a runner pulls in python-ldap and friends. So run them
+      # here, in the artifact that is about to be published, and let a failure
+      # stop the push rather than surface after release.
+      - name: Run Django functional tests inside the built image
+        run: |
+          IMAGE=ghcr.io/${{ github.repository }}
+          VERSION=${GITHUB_REF_NAME#v}
+          docker run --rm --user root \
+            -v "$PWD/forail/main/tests:/tmp/repo-tests:ro" \
+            -w /tmp --entrypoint bash "$IMAGE:$VERSION" -c '
+              set -e
+              # Resolve site-packages by glob so a Python bump does not break this.
+              SP=$(ls -d /var/lib/awx/venv/awx/lib/python3.*/site-packages)
+              rm -rf "$SP/forail/main/tests"
+              cp -r /tmp/repo-tests "$SP/forail/main/tests"
+              # Test-only deps the runtime image does not carry. pytest-asyncio is
+              # deliberately absent: it needs a newer typing_extensions than the
+              # application pins, and no test here is async.
+              pip install -q --break-system-packages \
+                  pytest pytest-django pytest-mock drf-yasg logutils colorama django-debug-toolbar
+              cd "$SP"
+              python3 -m pytest -q -p no:cacheprovider -p no:asyncio \
+                -o addopts="--nomigrations --tb=short" \
+                -o DJANGO_SETTINGS_MODULE=forail.main.tests.settings_for_test \
+                forail/main/tests/functional/commands/test_provision_instance.py \
+                forail/main/tests/functional/test_ha.py \
+                forail/main/tests/functional/test_instances.py \
+                forail/main/tests/functional/test_instance_group_ordering.py \
+                forail/main/tests/functional/test_rbac_instance_groups.py \
+                forail/main/tests/functional/api/test_instance_group.py \
+                forail/main/tests/functional/api/test_instance.py \
+                forail/main/tests/unit/models/test_ha.py
+            '
+
+      - name: Push image
+        run: |
+          IMAGE=ghcr.io/${{ github.repository }}
+          VERSION=${GITHUB_REF_NAME#v}
           docker push "$IMAGE:$VERSION"
