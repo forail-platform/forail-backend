@@ -7,6 +7,24 @@ and the project adheres to CalVer (`YYYY.MM.PATCH`).
 
 ## [Unreleased]
 
+## [2026.07.1] - 2026-07-26
+
+### Fixed
+- **The task pod stopped resetting how jobs are executed on every start.** Its
+  Kubernetes self-registration hardcoded `node_type='control'` and re-registered
+  the `default` queue as a ContainerGroup, and both calls overwrite what is
+  already in the database — so every restart, eviction and rolling upgrade undid
+  whatever the installer had configured. Upgrading from 2026.06.0 left the
+  `default` group without an execution-capable member, and every launch then sat
+  in `pending` with only *"not enough available capacity"* to explain it.
+  Registration now takes its intent from `FORAIL_NODE_TYPE`, which the Helm chart
+  and the Compose stack already set, and derives the default queue from it: an
+  execution-capable pod gets a regular instance group containing itself, a
+  control-only pod keeps the ContainerGroup. Both defaults are unchanged when the
+  variable is unset.
+
+## [2026.07.0] - 2026-07-25
+
 ### Added
 - **AWX → Forail migration importer** (`forail-manage import_from_awx`): a
   one-shot, idempotent importer that pulls Organizations, Users, Teams,
