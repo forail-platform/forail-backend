@@ -1,6 +1,11 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
+# VirtualBox is the only supported provider. libvirt/KVM is deliberately not
+# used here -- it cannot share AMD-V with VirtualBox on the same host, and the
+# other Forail environments are VirtualBox.
+ENV["VAGRANT_DEFAULT_PROVIDER"] ||= "virtualbox"
+
 Vagrant.configure("2") do |config|
   config.vm.box = "bento/ubuntu-24.04"
   config.vm.hostname = "awx-build"
@@ -17,11 +22,6 @@ Vagrant.configure("2") do |config|
     vb.name = "awx-build"
     vb.memory = "8192"
     vb.cpus = 4
-  end
-
-  config.vm.provider "libvirt" do |lv|
-    lv.memory = 8192
-    lv.cpus = 4
   end
 
   # Sync AWX source into VM
