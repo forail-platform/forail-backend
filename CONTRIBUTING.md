@@ -2,7 +2,7 @@
 
 Thanks for your interest in contributing!
 
-The full contributing guide — git workflow, commit conventions, coding standards, PR process — lives in the [forail-deploy repository](https://github.com/forail-platform/forail-devops/blob/main/docs/10-contributing-guide.md). Please read it before submitting a pull request.
+The full contributing guide — git workflow, commit conventions, coding standards, PR process — lives in the [Forail developer docs](https://forail-platform.github.io/dev/contributing.html). Please read it before submitting a pull request.
 
 ## Quick start (backend-specific)
 
