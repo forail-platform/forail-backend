@@ -73,9 +73,25 @@ class TenantIsolationMiddleware:
         try:
             tenant_org = self._resolve_tenant_org(request)
         except Exception:
-            # Resolving the user's tenant org failed. A user we cannot place
-            # into a tenant is treated as unscoped (superuser / non-tenant),
-            # which is the pre-existing contract for a None result.
+            # Fail CLOSED, for the same reason set_tenant_id does below.
+            #
+            # This used to swallow the error and continue with tenant_org=None,
+            # which __call__ cannot tell apart from "superuser / not a tenant
+            # user" -- so a transient database error during the org lookup let
+            # the request run with NO RLS scope, and RLS reads an unset tenant
+            # id as "all rows". A failed lookup is not evidence that the user
+            # has no tenant; it is evidence that we do not know.
+            #
+            # Only meaningful when tenancy and RLS are on: with either off,
+            # _resolve_tenant_org returns before it touches the database, so an
+            # exception here cannot come from the lookup and a single-tenant
+            # install is not turned into a 500.
+            if getattr(settings, 'TENANCY_ENABLED', False) and getattr(settings, 'TENANCY_RLS_ENABLED', False):
+                logger.exception('TenantIsolationMiddleware: tenant org resolution failed — failing closed')
+                return JsonResponse(
+                    {'detail': 'Tenant isolation could not be established.'},
+                    status=500,
+                )
             logger.debug('TenantIsolationMiddleware: tenant org resolution failed', exc_info=True)
             tenant_org = None
 
@@ -214,14 +230,14 @@ class TenantIsolationMiddleware:
         if getattr(user, 'is_superuser', False):
             return None
 
-        try:
-            orgs = list(
-                user.organizations.filter(is_tenant_root=True)
-                .only('pk', 'is_tenant_root', 'tenant_isolation_strict')[:1]
-            )
-        except Exception:
-            logger.debug('_resolve_tenant_org: org lookup failed', exc_info=True)
-            return None
+        # Deliberately not wrapped in try/except. A database error here must
+        # reach __call__, which fails the request closed; returning None would
+        # make "the lookup broke" indistinguishable from "this user has no
+        # tenant", and the second answer runs the request unscoped.
+        orgs = list(
+            user.organizations.filter(is_tenant_root=True)
+            .only('pk', 'is_tenant_root', 'tenant_isolation_strict')[:1]
+        )
 
         return orgs[0] if orgs else None
 
