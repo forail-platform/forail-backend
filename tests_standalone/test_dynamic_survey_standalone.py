@@ -7,12 +7,19 @@ import sys
 import os
 from unittest.mock import patch, MagicMock, PropertyMock
 
-# Mock Django modules before importing our code
+# Mock Django modules before importing our code.
+#
+# django.db has to be stubbed alongside the rest: forail/__init__.py does
+# `from django.db import connection` at import time, and a bare MagicMock under
+# 'django' is not a package, so that line is what made this file uncollectable
+# on its own. It was excluded from CI for it -- which left every test below
+# dead, including the ones covering the dynamic_choices source types.
 sys.modules['django'] = MagicMock()
 sys.modules['django.apps'] = MagicMock()
 sys.modules['django.core'] = MagicMock()
 sys.modules['django.core.cache'] = MagicMock()
 sys.modules['django.conf'] = MagicMock()
+sys.modules['django.db'] = MagicMock()
 
 import pytest
 
