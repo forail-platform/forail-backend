@@ -153,3 +153,24 @@ METRICS_SUBSYSTEM_CONFIG = {
         },
     }
 }
+
+
+# -----------------------------
+# -- Dynamic survey choices  --
+# -----------------------------
+# A survey question may resolve its choices from the database, from an external
+# API, or by rendering a Jinja2 template. The last one executes a template that
+# a job-template editor supplies, inside the web process, whenever a user with
+# `start` permission opens the launch prompt -- which is a code-execution path,
+# not a formatting convenience.
+#
+# It is therefore off, and deliberately NOT a database-backed setting: leaving
+# it out of /api/v2/settings/ means the API surface used to store a payload
+# cannot also be used to enable its execution. Turning it on takes a change to
+# a settings file on the server.
+#
+# When on, templates render in a Jinja2 sandbox with globals removed and a
+# reduced filter set (see forail/main/services/dynamic_survey.py). Treat that as
+# hardening rather than a boundary: prefer the db_query or api_endpoint source
+# types, which need no code execution at all.
+SURVEY_DYNAMIC_CHOICES_JINJA2_ENABLED = False

@@ -11,9 +11,8 @@ from unittest.mock import patch, MagicMock, PropertyMock
 #
 # django.db has to be stubbed alongside the rest: forail/__init__.py does
 # `from django.db import connection` at import time, and a bare MagicMock under
-# 'django' is not a package, so that line is what made this file uncollectable
-# on its own. It was excluded from CI for it -- which left every test below
-# dead, including the ones covering the dynamic_choices source types.
+# 'django' is not a package, so that line is what used to make this file
+# uncollectable on its own. It was excluded from CI for it.
 sys.modules['django'] = MagicMock()
 sys.modules['django.apps'] = MagicMock()
 sys.modules['django.core'] = MagicMock()
@@ -30,6 +29,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if 'forail.main.services.dynamic_survey' in sys.modules:
     del sys.modules['forail.main.services.dynamic_survey']
 
+from forail.main.services import dynamic_survey
 from forail.main.services.dynamic_survey import (
     validate_dynamic_choices_config,
     _resolve_api_endpoint,
@@ -39,6 +39,26 @@ from forail.main.services.dynamic_survey import (
     ALLOWED_DB_MODELS,
     ALLOWED_DB_FIELDS,
 )
+
+
+class _Settings:
+    """Stands in for django.conf.settings.
+
+    The real settings object is a MagicMock here, and every attribute of a
+    MagicMock is truthy -- which would silently enable the jinja2 source type
+    in every test. The service reads the flag with `is True` for that reason;
+    this class lets a test say which value it wants.
+    """
+
+    def __init__(self, **attrs):
+        self.__dict__.update(attrs)
+
+
+def jinja2_enabled(value=True):
+    """Patch the service's settings so the jinja2 source type is on/off."""
+    return patch.object(
+        dynamic_survey, 'settings', _Settings(SURVEY_DYNAMIC_CHOICES_JINJA2_ENABLED=value)
+    )
 
 
 # ===== validate_dynamic_choices_config =====
@@ -53,9 +73,26 @@ class TestValidation:
         dc = {'enabled': True, 'source_type': 'api_endpoint', 'url': 'https://example.com/api', 'cache_ttl': 30}
         assert validate_dynamic_choices_config(dc) == []
 
-    def test_valid_jinja2(self):
+    def test_jinja2_rejected_by_default(self):
+        # The source type executes a template in the web process, so a survey
+        # spec may not even be saved with it unless an operator opted in.
         dc = {'enabled': True, 'source_type': 'jinja2', 'template': '{{ hosts }}', 'cache_ttl': 10}
-        assert validate_dynamic_choices_config(dc) == []
+        errors = validate_dynamic_choices_config(dc)
+        assert len(errors) == 1
+        assert 'SURVEY_DYNAMIC_CHOICES_JINJA2_ENABLED' in errors[0]
+
+    def test_valid_jinja2_when_operator_enabled(self):
+        dc = {'enabled': True, 'source_type': 'jinja2', 'template': '{{ hosts }}', 'cache_ttl': 10}
+        with jinja2_enabled():
+            assert validate_dynamic_choices_config(dc) == []
+
+    def test_jinja2_not_enabled_by_a_truthy_value(self):
+        # A stray "true"/1 in a settings file must not turn code execution on.
+        dc = {'enabled': True, 'source_type': 'jinja2', 'template': '{{ hosts }}'}
+        for value in ('True', 'true', 1, [1]):
+            with jinja2_enabled(value):
+                errors = validate_dynamic_choices_config(dc)
+                assert errors, f'{value!r} should not enable the jinja2 source type'
 
     def test_disabled_always_valid(self):
         assert validate_dynamic_choices_config({'enabled': False}) == []
@@ -92,7 +129,8 @@ class TestValidation:
 
     def test_jinja2_missing_template(self):
         dc = {'enabled': True, 'source_type': 'jinja2'}
-        errors = validate_dynamic_choices_config(dc)
+        with jinja2_enabled():
+            errors = validate_dynamic_choices_config(dc)
         assert any("template" in e for e in errors)
 
     def test_negative_ttl(self):
@@ -180,22 +218,120 @@ class TestApiEndpoint:
 # ===== _resolve_jinja2 =====
 
 class TestJinja2:
+    """The renderer, with the source type turned on by an operator."""
 
     def test_static_list(self):
-        result = _resolve_jinja2({'template': '["opt1", "opt2"]'})
+        with jinja2_enabled():
+            result = _resolve_jinja2({'template': '["opt1", "opt2"]'})
         assert result == ['opt1', 'opt2']
 
     def test_empty_template(self):
-        assert _resolve_jinja2({'template': ''}) == []
+        with jinja2_enabled():
+            assert _resolve_jinja2({'template': ''}) == []
 
     def test_invalid_output(self):
         # Non-JSON result
-        result = _resolve_jinja2({'template': 'not json'})
+        with jinja2_enabled():
+            result = _resolve_jinja2({'template': 'not json'})
         assert result == []
 
-    def test_expression_eval(self):
-        result = _resolve_jinja2({'template': '{{ range(1,4) | list | tojson }}'})
-        assert result == [1, 2, 3]
+    def test_filters_still_work(self):
+        with jinja2_enabled():
+            result = _resolve_jinja2({'template': '{{ ["b", "a", "b"] | unique | sort | list | tojson }}'})
+        assert result == ['a', 'b']
+
+    def test_result_is_capped(self):
+        with jinja2_enabled():
+            result = _resolve_jinja2({'template': '{{ (["x"] * 600) | list | tojson }}'})
+        assert len(result) == 500
+
+
+class TestJinja2Disabled:
+    """Default posture: the template is never rendered at all."""
+
+    def test_renderer_refuses(self):
+        # A template that would raise if it were rendered proves the renderer
+        # was never reached, not merely that the output was discarded.
+        assert _resolve_jinja2({'template': '["ran"]'}) == []
+
+    @patch('forail.main.services.dynamic_survey.cache')
+    @patch('forail.main.services.dynamic_survey._resolve_jinja2')
+    def test_dispatch_does_not_call_the_renderer(self, mock_jinja, mock_cache):
+        # Survey specs saved before the source type was refused still sit in the
+        # database; resolving one must not execute it.
+        mock_cache.get.return_value = None
+        q = {
+            'variable': 'v',
+            'dynamic_choices': {
+                'enabled': True,
+                'source_type': 'jinja2',
+                'template': '{{ cycler.__init__.__globals__ }}',
+                'cache_ttl': 10,
+            },
+        }
+        assert resolve_dynamic_choices(q) == []
+        mock_jinja.assert_not_called()
+
+    @patch('forail.main.services.dynamic_survey.cache')
+    @patch('forail.main.services.dynamic_survey._resolve_jinja2')
+    def test_refusal_is_not_cached(self, mock_jinja, mock_cache):
+        # Caching the empty result would mask the warning for the whole TTL.
+        mock_cache.get.return_value = None
+        q = {'variable': 'v', 'dynamic_choices': {'enabled': True, 'source_type': 'jinja2', 'cache_ttl': 300}}
+        resolve_dynamic_choices(q)
+        mock_cache.set.assert_not_called()
+
+
+# Known template-to-Python routes. These are the expressions the original
+# unsandboxed Environment answered: `{{ cycler.__init__.__globals__.os.name }}`
+# returned `posix`, which is a read from the module table and one attribute away
+# from `os.system`.
+JINJA2_ESCAPES = [
+    "{{ cycler.__init__.__globals__.os.name }}",
+    "{{ cycler.__init__.__globals__['os'].name }}",
+    "{{ joiner.__init__.__globals__ }}",
+    "{{ namespace.__init__.__globals__ }}",
+    "{{ ''.__class__.__mro__[1].__subclasses__() }}",
+    "{{ ''.__class__.__base__.__subclasses__() }}",
+    "{{ [].__class__.__base__.__subclasses__() }}",
+    "{{ lipsum.__globals__ }}",
+    "{{ self._TemplateReference__context }}",
+    "{{ config }}",
+    "{{ request }}",
+    "{{ ''.__class__.__mro__[1].__subclasses__()[0].__init__.__globals__ }}",
+]
+
+
+class TestJinja2SandboxEscapes:
+    """The escapes above, asserted against the operator-enabled path."""
+
+    @pytest.mark.parametrize('expression', JINJA2_ESCAPES)
+    def test_escape_yields_no_choices(self, expression):
+        with jinja2_enabled():
+            assert _resolve_jinja2({'template': expression}) == []
+
+    @pytest.mark.parametrize('expression', JINJA2_ESCAPES)
+    def test_escape_never_reaches_the_module_table(self, expression):
+        # Wrapping the expression in a JSON list matters: rendered bare, an
+        # escape returns a Python repr that fails json.loads, so the empty
+        # result would prove nothing. Wrapped, a successful escape parses
+        # cleanly and comes back as a populated list. Against the pre-fix
+        # renderer this exact shape returned ['x', 'posix'] for the cycler
+        # payload, and the PATH environment variable for its os.environ variant.
+        with jinja2_enabled():
+            result = _resolve_jinja2({'template': '["x", "' + expression + '"]'})
+        assert result == []
+
+    def test_globals_are_gone(self):
+        # range/dict/lipsum/cycler/namespace/joiner are removed outright, so the
+        # escape above has nothing to start from even before the sandbox runs.
+        with jinja2_enabled():
+            for name in ('range', 'dict', 'lipsum', 'cycler', 'namespace', 'joiner'):
+                assert _resolve_jinja2({'template': f'{{{{ {name} }}}}'}) == []
+
+    def test_disallowed_filter_is_gone(self):
+        with jinja2_enabled():
+            assert _resolve_jinja2({'template': "{{ ['a'] | pprint }}"}) == []
 
 
 # ===== _resolve_db_query =====
@@ -290,7 +426,8 @@ class TestResolveDynamicChoices:
         mock_cache.get.return_value = None
         mock_resolve.return_value = ['j1', 'j2']
         q = {'variable': 'v', 'dynamic_choices': {'enabled': True, 'source_type': 'jinja2', 'template': '{{ x }}', 'cache_ttl': 10}}
-        result = resolve_dynamic_choices(q)
+        with jinja2_enabled():
+            result = resolve_dynamic_choices(q)
         assert result == ['j1', 'j2']
 
     @patch('forail.main.services.dynamic_survey.cache')
