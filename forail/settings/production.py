@@ -30,6 +30,25 @@ SECRET_KEY = None
 # See https://docs.djangoproject.com/en/dev/ref/settings/#allowed-hosts
 ALLOWED_HOSTS = []
 
+# SSO callback and redirect URLs are built from the request. Behind a
+# TLS-terminating proxy the request python-social-auth sees is plain HTTP, so
+# with this False the URL handed to the identity provider can come out as
+# http:// -- which either breaks the flow against a provider that requires an
+# exact https redirect URI, or completes an OAuth/SAML exchange over an
+# unprotected scheme. In production TLS terminates in front of this process, so
+# the answer is always https.
+#
+# Not paired with SECURE_PROXY_SSL_HEADER here on purpose. That setting makes
+# Django believe any request carrying X-Forwarded-Proto: https, and
+# PROXY_IP_ALLOWED_LIST is empty by default, meaning proxy headers are trusted
+# unconditionally -- so enabling it without a trusted proxy in front lets a
+# client assert its own scheme. Set it in a conf.d override once the proxy is
+# the only route to this process:
+#
+#     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+#     PROXY_IP_ALLOWED_LIST = ['10.0.1.100']
+SOCIAL_AUTH_REDIRECT_IS_HTTPS = True
+
 # Ansible base virtualenv paths and enablement
 # only used for deprecated fields and management commands for them
 BASE_VENV_PATH = os.path.realpath("/var/lib/awx/venv")

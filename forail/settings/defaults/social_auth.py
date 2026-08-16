@@ -51,6 +51,10 @@ SOCIAL_AUTH_USERNAME_IS_FULL_EMAIL = False
 SOCIAL_AUTH_CLEAN_USERNAMES = True
 
 SOCIAL_AUTH_SANITIZE_REDIRECTS = True
+# False here is the development default: a dev server speaks plain HTTP, and
+# forcing https on its callbacks makes SSO untestable locally. The production
+# profile sets this to True -- see forail/settings/production.py for why, and
+# for the SECURE_PROXY_SSL_HEADER caveat that goes with it.
 SOCIAL_AUTH_REDIRECT_IS_HTTPS = False
 
 # Note: These settings may be overridden by database settings.
