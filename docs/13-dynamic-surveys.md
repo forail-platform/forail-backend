@@ -15,7 +15,7 @@ surveys resolve choices from three configurable sources:
 | ------------------- | -------------------------------------------------- | ----------------------------------- |
 | **Database Query**  | Query Forail models (hosts, groups, projects, etc.) | Select a host from inventory        |
 | **External API**    | Fetch choices from an HTTP endpoint                | Options from CMDB, ServiceNow, etc. |
-| **Jinja2 Template** | Evaluate a Jinja2 expression                       | Custom logic using inventory data   |
+| ~~Jinja2 Template~~ | **Withdrawn** — see below                          | —                                   |
 
 Results are cached with a configurable TTL to avoid slow launches.
 
@@ -60,7 +60,7 @@ A survey question with dynamic choices includes a `dynamic_choices` field:
 | Field         | Type    | Required         | Description                                  |
 | ------------- | ------- | ---------------- | -------------------------------------------- |
 | `enabled`     | boolean | Yes              | Enable/disable dynamic choices               |
-| `source_type` | string  | Yes (if enabled) | One of: `db_query`, `api_endpoint`, `jinja2` |
+| `source_type` | string  | Yes (if enabled) | One of: `db_query`, `api_endpoint` (`jinja2` is withdrawn) |
 | `cache_ttl`   | integer | No (default: 60) | Cache duration in seconds (0 = no cache)     |
 
 ---
@@ -165,15 +165,35 @@ With `json_path: "data.items"` and `value_field: "hostname"`, this returns
 
 ---
 
-## Source: Jinja2 Template
+## Source: Jinja2 Template — withdrawn
 
-Evaluate a Jinja2 expression that outputs a JSON array.
+**This source type is disabled and surveys can no longer be saved with it.**
+
+The template was rendered on the server, in the web process, whenever a user
+with `start` permission opened the launch prompt. Jinja2 seeds every environment
+with objects whose `__init__.__globals__` reaches Python's module table, so
+whoever could edit a job template's survey could run arbitrary code as the web
+process — `{{ cycler.__init__.__globals__.os.environ.get('PATH') }}` returned the
+server's `PATH`. Earlier versions of this page claimed the templates ran in a
+restricted sandbox. They did not.
+
+Surveys already stored with `source_type: jinja2` resolve to **no choices** and
+log a warning; they are not executed. Move them to `db_query` (for anything
+drawn from inventory) or `api_endpoint` (for anything computed elsewhere).
+
+An operator who accepts the risk can set
+`SURVEY_DYNAMIC_CHOICES_JINJA2_ENABLED = True` in the server settings file — not
+via `/api/v2/settings/`, deliberately, so the API used to store a template cannot
+also enable its execution. Templates then render in a Jinja2 sandbox with globals
+removed and a reduced filter set. Treat that as hardening, not as a boundary:
+sandbox escapes are found periodically, and a template rendering in the web
+process is worth an escape to whoever plants it.
 
 ```json
 {
   "enabled": true,
   "source_type": "jinja2",
-  "template": "{{ groups | tojson }}",
+  "template": "{{ groups | sort | tojson }}",
   "cache_ttl": 60
 }
 ```
@@ -196,8 +216,8 @@ The template **must output a valid JSON array**.
 {# Filter hosts by prefix #}
 {{ hosts | select("match", "^web") | list | tojson }}
 
-{# Static list generated from range #}
-{{ range(1, 11) | list | tojson }}
+{# `range` and the other Jinja globals are removed; build from context instead #}
+{{ groups | sort | tojson }}
 ```
 
 ---
@@ -247,11 +267,13 @@ Requires `start` permission on the job template (same as launching).
 1. `dynamic_choices` is only valid on `multiplechoice` and `multiselect` types
 2. When `dynamic_choices.enabled` is `true`, static `choices` field is not required
 3. During job launch, answers to dynamic choice questions skip static choice validation
-4. The `source_type` must be one of: `db_query`, `api_endpoint`, `jinja2`
+4. The `source_type` must be one of: `db_query`, `api_endpoint`. `jinja2` is
+   rejected unless `SURVEY_DYNAMIC_CHOICES_JINJA2_ENABLED` is `True` in the
+   server settings file
 5. DB query `model` must be from the allowed list
 6. DB query `field` must be from: `name`, `id`, `description`
 7. API endpoint requires a non-empty `url`
-8. Jinja2 requires a non-empty `template`
+8. Jinja2, where an operator has re-enabled it, requires a non-empty `template`
 9. `cache_ttl` must be a non-negative integer
 
 ---
@@ -281,6 +303,8 @@ Requires `start` permission on the job template (same as launching).
 ## Limitations
 
 - Maximum 500 choices returned per question (to prevent UI issues)
-- Jinja2 templates run in a restricted sandbox (no file I/O)
+- Jinja2 as a source type is withdrawn; where an operator has re-enabled it,
+  templates render in a Jinja2 sandbox with globals removed and a reduced filter
+  set — hardening, not a trust boundary
 - External API requests have a configurable timeout (default 10s)
 - DB query filters are limited to safe field lookups for security
