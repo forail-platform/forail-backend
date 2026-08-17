@@ -174,3 +174,21 @@ METRICS_SUBSYSTEM_CONFIG = {
 # hardening rather than a boundary: prefer the db_query or api_endpoint source
 # types, which need no code execution at all.
 SURVEY_DYNAMIC_CHOICES_JINJA2_ENABLED = False
+
+
+# The `api_endpoint` source makes the server fetch a URL taken from the survey.
+# Without a destination policy that is an SSRF primitive: whoever edits a job
+# template chooses the address and the server reaches it from inside the
+# cluster, then hands the JSON back to any user with `start` permission.
+#
+# So destinations are named here, by an operator, and matched exactly -- no
+# wildcards, no suffix matching. Empty (the default) disables the source type.
+# https only; redirects are never followed; the response is read bounded.
+#
+#     SURVEY_DYNAMIC_CHOICES_API_ALLOWLIST = ['cmdb.internal.example.com']
+#
+# Private addresses are allowed on purpose -- an on-prem CMDB is the ordinary
+# case, and naming the host here is the trust decision. Loopback, link-local
+# (cloud metadata), multicast and reserved addresses are refused even for a
+# listed host, so a hijacked DNS record cannot redirect the fetch inward.
+SURVEY_DYNAMIC_CHOICES_API_ALLOWLIST = []

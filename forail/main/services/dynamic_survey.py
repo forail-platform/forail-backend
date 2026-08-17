@@ -1,7 +1,10 @@
 import hashlib
+import ipaddress
 import json
 import logging
+import socket
 import time
+from urllib.parse import urlsplit
 
 import requests
 from django.apps import apps
@@ -56,6 +59,91 @@ JINJA2_ALLOWED_FILTERS = frozenset(
 # Same ceiling the DB source applies, for the same reason: a choices list is a
 # dropdown, not a data export.
 MAX_CHOICES = 500
+
+# The api_endpoint source makes the server issue a request to a URL taken from
+# the survey. Without a destination policy that is an SSRF primitive: whoever
+# edits a job template picks the address, and the server reaches it from inside
+# the cluster -- cloud metadata endpoints, admin ports bound to loopback,
+# neighbouring services -- while the JSON body comes back through the choices
+# endpoint to any user with `start` permission.
+#
+# The destination must therefore be named by an operator, in a settings file,
+# and it is host-exact: no wildcards, no suffix matching. An empty list (the
+# default) disables the source type outright.
+SURVEY_DYNAMIC_CHOICES_API_ALLOWLIST_SETTING = 'SURVEY_DYNAMIC_CHOICES_API_ALLOWLIST'
+
+# Even an allowlisted name is re-checked after resolution, which is what stops an
+# allowlisted host from being pointed at the metadata service. Private ranges are
+# deliberately permitted: an on-prem CMDB on 10.0.0.0/8 is the ordinary case for
+# this feature, and the operator naming the host is the trust decision. What is
+# refused is the set no legitimate choices API lives on.
+API_FORBIDDEN_MESSAGE = {
+    'loopback': 'a loopback address',
+    'link_local': 'a link-local address (this is where cloud metadata lives)',
+    'multicast': 'a multicast address',
+    'reserved': 'a reserved address',
+    'unspecified': 'the unspecified address',
+}
+
+# A choices list that does not fit in a megabyte is not a choices list. Read
+# bounded rather than trusting Content-Length, which the peer controls.
+API_RESPONSE_MAX_BYTES = 1024 * 1024
+
+# The survey supplies the timeout, so it needs a ceiling: a request that hangs
+# holds a web worker for as long as it is allowed to.
+API_MAX_TIMEOUT = 30
+
+
+def _api_allowlist():
+    hosts = getattr(settings, SURVEY_DYNAMIC_CHOICES_API_ALLOWLIST_SETTING, ()) or ()
+    if isinstance(hosts, str):
+        hosts = (hosts,)
+    try:
+        return {h.strip().lower() for h in hosts if isinstance(h, str) and h.strip()}
+    except TypeError:
+        return set()
+
+
+def api_destination_refusal(url):
+    """
+    Why this URL may not be fetched, or None if it may.
+
+    Returns a reason string rather than a bool so the caller can log which rule
+    refused; the reason is deliberately not returned to the API client, since it
+    would otherwise answer questions about the internal network.
+    """
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return 'the URL cannot be parsed'
+
+    if parts.scheme != 'https':
+        return f"the scheme must be https, got {parts.scheme or 'none'}"
+
+    host = parts.hostname
+    if not host:
+        return 'the URL has no host'
+
+    allow = _api_allowlist()
+    if not allow:
+        return f'{SURVEY_DYNAMIC_CHOICES_API_ALLOWLIST_SETTING} is empty, so no destination is permitted'
+    if host.lower() not in allow:
+        return f'the host is not listed in {SURVEY_DYNAMIC_CHOICES_API_ALLOWLIST_SETTING}'
+
+    try:
+        infos = socket.getaddrinfo(host, parts.port or 443, proto=socket.IPPROTO_TCP)
+    except OSError:
+        return 'the host does not resolve'
+
+    for info in infos:
+        try:
+            addr = ipaddress.ip_address(info[4][0])
+        except ValueError:
+            return 'the host resolves to an address that cannot be parsed'
+        for attribute, description in API_FORBIDDEN_MESSAGE.items():
+            if getattr(addr, f'is_{attribute}', False):
+                return f'the host resolves to {description}'
+    return None
 
 
 def jinja2_source_enabled():
@@ -213,21 +301,53 @@ def _resolve_api_endpoint(dc):
     if not url:
         return []
 
+    refusal = api_destination_refusal(url)
+    if refusal:
+        # Logged, not returned: the reason describes the internal network, and
+        # the caller of the choices endpoint is any user with `start` permission.
+        logger.warning('Refusing dynamic choices API request to %s: %s', url, refusal)
+        return []
+
     method = dc.get('method', 'GET').upper()
+    if method not in ('GET', 'POST'):
+        logger.warning('Refusing dynamic choices API request to %s: method %s is not allowed', url, method)
+        return []
+
     headers = dc.get('headers', {})
     timeout = dc.get('timeout', 10)
+    try:
+        timeout = min(float(timeout), API_MAX_TIMEOUT)
+    except (TypeError, ValueError):
+        timeout = 10
     json_path = dc.get('json_path', '')
     value_field = dc.get('value_field', '')
 
     try:
+        # allow_redirects=False on purpose. Following them would re-open exactly
+        # what api_destination_refusal() just closed: the first hop is checked,
+        # every hop after it is chosen by the peer.
+        kwargs = dict(headers=headers, timeout=timeout, allow_redirects=False, stream=True)
         if method == 'POST':
-            body = dc.get('body', {})
-            resp = requests.post(url, json=body, headers=headers, timeout=timeout)
+            resp = requests.post(url, json=dc.get('body', {}), **kwargs)
         else:
-            resp = requests.get(url, headers=headers, timeout=timeout)
+            resp = requests.get(url, **kwargs)
 
-        resp.raise_for_status()
-        data = resp.json()
+        with resp:
+            if resp.is_redirect or resp.is_permanent_redirect:
+                logger.warning(
+                    'Refusing dynamic choices API response from %s: redirect to %s not followed',
+                    url,
+                    resp.headers.get('Location', '(no Location)'),
+                )
+                return []
+            resp.raise_for_status()
+
+            # Read bounded rather than trusting Content-Length: the peer sets it.
+            body = resp.raw.read(API_RESPONSE_MAX_BYTES + 1, decode_content=True)
+            if len(body) > API_RESPONSE_MAX_BYTES:
+                logger.warning('Refusing dynamic choices API response from %s: larger than %s bytes', url, API_RESPONSE_MAX_BYTES)
+                return []
+            data = json.loads(body)
     except Exception:
         logger.exception('Dynamic choices API request failed for %s', url)
         return []
@@ -247,9 +367,9 @@ def _resolve_api_endpoint(dc):
 
     # Extract values
     if value_field:
-        return [item.get(value_field, '') for item in data if isinstance(item, dict)]
+        return [item.get(value_field, '') for item in data if isinstance(item, dict)][:MAX_CHOICES]
     else:
-        return [str(item) for item in data]
+        return [str(item) for item in data][:MAX_CHOICES]
 
 
 def _resolve_jinja2(dc, template=None):
@@ -376,6 +496,17 @@ def validate_dynamic_choices_config(dc):
         url = dc.get('url', '')
         if not url or not isinstance(url, str):
             errors.append("dynamic_choices api_endpoint requires a non-empty 'url' string.")
+        else:
+            # Refuse at save time as well as at fetch time, so the editor learns
+            # the destination is not permitted instead of getting a survey that
+            # silently resolves to nothing.
+            refusal = api_destination_refusal(url)
+            if refusal:
+                errors.append(
+                    "dynamic_choices api_endpoint url is not permitted: "
+                    f"{refusal}. Destinations are named by an administrator in "
+                    f"{SURVEY_DYNAMIC_CHOICES_API_ALLOWLIST_SETTING}."
+                )
 
     elif source_type == 'jinja2':
         tmpl = dc.get('template', '')

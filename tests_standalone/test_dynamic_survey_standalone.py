@@ -61,6 +61,39 @@ def jinja2_enabled(value=True):
     )
 
 
+def api_allowed(*hosts):
+    """Patch the service's settings so those hosts are permitted destinations."""
+    return patch.object(
+        dynamic_survey, 'settings', _Settings(SURVEY_DYNAMIC_CHOICES_API_ALLOWLIST=list(hosts))
+    )
+
+
+def resolves_to(address='93.184.216.34'):
+    """Patch name resolution, so no test depends on a real DNS answer."""
+    family = 2 if ':' not in address else 10
+    return patch.object(
+        dynamic_survey,
+        'socket',
+        MagicMock(
+            IPPROTO_TCP=6,
+            getaddrinfo=MagicMock(return_value=[(family, 1, 6, '', (address, 443))]),
+        ),
+    )
+
+
+def api_response(payload, status_ok=True):
+    """A stand-in for requests' Response, as the fetch path actually uses it."""
+    resp = MagicMock()
+    resp.is_redirect = False
+    resp.is_permanent_redirect = False
+    resp.headers = {}
+    resp.raw.read.return_value = json.dumps(payload).encode()
+    resp.raise_for_status = MagicMock() if status_ok else MagicMock(side_effect=Exception('http error'))
+    resp.__enter__ = MagicMock(return_value=resp)
+    resp.__exit__ = MagicMock(return_value=False)
+    return resp
+
+
 # ===== validate_dynamic_choices_config =====
 
 class TestValidation:
@@ -71,7 +104,15 @@ class TestValidation:
 
     def test_valid_api_endpoint(self):
         dc = {'enabled': True, 'source_type': 'api_endpoint', 'url': 'https://example.com/api', 'cache_ttl': 30}
-        assert validate_dynamic_choices_config(dc) == []
+        with api_allowed('example.com'), resolves_to():
+            assert validate_dynamic_choices_config(dc) == []
+
+    def test_api_endpoint_rejected_without_an_allowlist(self):
+        # Same posture as the jinja2 source type: nothing is reachable until an
+        # operator names it.
+        dc = {'enabled': True, 'source_type': 'api_endpoint', 'url': 'https://example.com/api', 'cache_ttl': 30}
+        errors = validate_dynamic_choices_config(dc)
+        assert any('SURVEY_DYNAMIC_CHOICES_API_ALLOWLIST' in e for e in errors)
 
     def test_jinja2_rejected_by_default(self):
         # The source type executes a template in the web process, so a survey
@@ -154,45 +195,34 @@ class TestValidation:
 # ===== _resolve_api_endpoint =====
 
 class TestApiEndpoint:
+    """The fetch path, with the destination named by an operator."""
 
     @patch('forail.main.services.dynamic_survey.requests')
     def test_simple_list(self, mock_req):
-        resp = MagicMock()
-        resp.json.return_value = ['a', 'b', 'c']
-        resp.raise_for_status = MagicMock()
-        mock_req.get.return_value = resp
-
-        result = _resolve_api_endpoint({'url': 'https://example.com/list'})
+        mock_req.get.return_value = api_response(['a', 'b', 'c'])
+        with api_allowed('example.com'), resolves_to():
+            result = _resolve_api_endpoint({'url': 'https://example.com/list'})
         assert result == ['a', 'b', 'c']
 
     @patch('forail.main.services.dynamic_survey.requests')
     def test_json_path(self, mock_req):
-        resp = MagicMock()
-        resp.json.return_value = {'data': {'items': ['x', 'y']}}
-        resp.raise_for_status = MagicMock()
-        mock_req.get.return_value = resp
-
-        result = _resolve_api_endpoint({'url': 'https://example.com', 'json_path': 'data.items'})
+        mock_req.get.return_value = api_response({'data': {'items': ['x', 'y']}})
+        with api_allowed('example.com'), resolves_to():
+            result = _resolve_api_endpoint({'url': 'https://example.com', 'json_path': 'data.items'})
         assert result == ['x', 'y']
 
     @patch('forail.main.services.dynamic_survey.requests')
     def test_value_field(self, mock_req):
-        resp = MagicMock()
-        resp.json.return_value = [{'name': 'srv1'}, {'name': 'srv2'}]
-        resp.raise_for_status = MagicMock()
-        mock_req.get.return_value = resp
-
-        result = _resolve_api_endpoint({'url': 'https://example.com', 'value_field': 'name'})
+        mock_req.get.return_value = api_response([{'name': 'srv1'}, {'name': 'srv2'}])
+        with api_allowed('example.com'), resolves_to():
+            result = _resolve_api_endpoint({'url': 'https://example.com', 'value_field': 'name'})
         assert result == ['srv1', 'srv2']
 
     @patch('forail.main.services.dynamic_survey.requests')
     def test_post_method(self, mock_req):
-        resp = MagicMock()
-        resp.json.return_value = ['p1', 'p2']
-        resp.raise_for_status = MagicMock()
-        mock_req.post.return_value = resp
-
-        result = _resolve_api_endpoint({'url': 'https://example.com', 'method': 'POST', 'body': {}})
+        mock_req.post.return_value = api_response(['p1', 'p2'])
+        with api_allowed('example.com'), resolves_to():
+            result = _resolve_api_endpoint({'url': 'https://example.com', 'method': 'POST', 'body': {}})
         assert result == ['p1', 'p2']
         mock_req.post.assert_called_once()
 
@@ -202,17 +232,106 @@ class TestApiEndpoint:
     @patch('forail.main.services.dynamic_survey.requests')
     def test_error_returns_empty(self, mock_req):
         mock_req.get.side_effect = Exception("fail")
-        assert _resolve_api_endpoint({'url': 'https://bad.example.com'}) == []
+        with api_allowed('bad.example.com'), resolves_to():
+            assert _resolve_api_endpoint({'url': 'https://bad.example.com'}) == []
 
     @patch('forail.main.services.dynamic_survey.requests')
     def test_non_list_response(self, mock_req):
-        resp = MagicMock()
-        resp.json.return_value = {"not": "a list"}
-        resp.raise_for_status = MagicMock()
-        mock_req.get.return_value = resp
-
-        result = _resolve_api_endpoint({'url': 'https://example.com'})
+        mock_req.get.return_value = api_response({"not": "a list"})
+        with api_allowed('example.com'), resolves_to():
+            result = _resolve_api_endpoint({'url': 'https://example.com'})
         assert result == []
+
+    @patch('forail.main.services.dynamic_survey.requests')
+    def test_redirect_is_not_followed(self, mock_req):
+        # The first hop is what the allowlist checked; every hop after it is
+        # chosen by the peer, so following one re-opens the SSRF.
+        resp = api_response([])
+        resp.is_redirect = True
+        resp.headers = {'Location': 'http://169.254.169.254/latest/meta-data/'}
+        mock_req.get.return_value = resp
+        with api_allowed('example.com'), resolves_to():
+            assert _resolve_api_endpoint({'url': 'https://example.com'}) == []
+        assert mock_req.get.call_args[1]['allow_redirects'] is False
+
+    @patch('forail.main.services.dynamic_survey.requests')
+    def test_oversized_response_is_refused(self, mock_req):
+        resp = api_response([])
+        resp.raw.read.return_value = b'x' * (dynamic_survey.API_RESPONSE_MAX_BYTES + 1)
+        mock_req.get.return_value = resp
+        with api_allowed('example.com'), resolves_to():
+            assert _resolve_api_endpoint({'url': 'https://example.com'}) == []
+
+    @patch('forail.main.services.dynamic_survey.requests')
+    def test_timeout_is_capped(self, mock_req):
+        mock_req.get.return_value = api_response([])
+        with api_allowed('example.com'), resolves_to():
+            _resolve_api_endpoint({'url': 'https://example.com', 'timeout': 9999})
+        assert mock_req.get.call_args[1]['timeout'] == dynamic_survey.API_MAX_TIMEOUT
+
+
+class TestApiDestinationPolicy:
+    """
+    Destination control, which is what turns this source type from an SSRF
+    primitive into a fetch from somewhere an operator named.
+    """
+
+    @patch('forail.main.services.dynamic_survey.requests')
+    def test_no_allowlist_refuses_everything(self, mock_req):
+        # The default posture: the source type is off until an operator names a
+        # destination.
+        assert _resolve_api_endpoint({'url': 'https://example.com'}) == []
+        mock_req.get.assert_not_called()
+
+    @patch('forail.main.services.dynamic_survey.requests')
+    def test_unlisted_host_is_refused(self, mock_req):
+        with api_allowed('cmdb.internal.example.com'), resolves_to():
+            assert _resolve_api_endpoint({'url': 'https://evil.example.net/x'}) == []
+        mock_req.get.assert_not_called()
+
+    @patch('forail.main.services.dynamic_survey.requests')
+    def test_http_is_refused(self, mock_req):
+        with api_allowed('example.com'), resolves_to():
+            assert _resolve_api_endpoint({'url': 'http://example.com'}) == []
+        mock_req.get.assert_not_called()
+
+    @patch('forail.main.services.dynamic_survey.requests')
+    def test_listed_host_resolving_to_metadata_is_refused(self, mock_req):
+        # The case the allowlist alone does not cover: a listed name whose DNS
+        # answer points at the cloud metadata service.
+        with api_allowed('cmdb.internal.example.com'), resolves_to('169.254.169.254'):
+            assert _resolve_api_endpoint({'url': 'https://cmdb.internal.example.com/x'}) == []
+        mock_req.get.assert_not_called()
+
+    @patch('forail.main.services.dynamic_survey.requests')
+    def test_listed_host_resolving_to_loopback_is_refused(self, mock_req):
+        with api_allowed('cmdb.internal.example.com'), resolves_to('127.0.0.1'):
+            assert _resolve_api_endpoint({'url': 'https://cmdb.internal.example.com/x'}) == []
+        mock_req.get.assert_not_called()
+
+    @patch('forail.main.services.dynamic_survey.requests')
+    def test_private_address_is_allowed(self, mock_req):
+        # An on-prem CMDB on RFC1918 is the ordinary use of this feature; the
+        # operator naming the host is the trust decision.
+        mock_req.get.return_value = api_response(['srv1'])
+        with api_allowed('cmdb.internal.example.com'), resolves_to('10.4.1.7'):
+            assert _resolve_api_endpoint({'url': 'https://cmdb.internal.example.com/x'}) == ['srv1']
+
+    @patch('forail.main.services.dynamic_survey.requests')
+    def test_non_get_post_method_is_refused(self, mock_req):
+        with api_allowed('example.com'), resolves_to():
+            assert _resolve_api_endpoint({'url': 'https://example.com', 'method': 'DELETE'}) == []
+
+    def test_validation_refuses_an_unlisted_destination(self):
+        dc = {'enabled': True, 'source_type': 'api_endpoint', 'url': 'https://evil.example.net'}
+        with api_allowed('cmdb.internal.example.com'), resolves_to():
+            errors = validate_dynamic_choices_config(dc)
+        assert any('not permitted' in e for e in errors)
+
+    def test_validation_accepts_a_listed_destination(self):
+        dc = {'enabled': True, 'source_type': 'api_endpoint', 'url': 'https://cmdb.internal.example.com/x'}
+        with api_allowed('cmdb.internal.example.com'), resolves_to('10.4.1.7'):
+            assert validate_dynamic_choices_config(dc) == []
 
 
 # ===== _resolve_jinja2 =====
