@@ -81,6 +81,15 @@ def resolves_to(address='93.184.216.34'):
     )
 
 
+def fake_template(pk=1, organization_id=1, inventory_id=1):
+    """A job template, as the cache key reads it."""
+    t = MagicMock()
+    t.pk = pk
+    t.organization_id = organization_id
+    t.inventory_id = inventory_id
+    return t
+
+
 def api_response(payload, status_ok=True):
     """A stand-in for requests' Response, as the fetch path actually uses it."""
     resp = MagicMock()
@@ -453,6 +462,48 @@ class TestJinja2SandboxEscapes:
             assert _resolve_jinja2({'template': "{{ ['a'] | pprint }}"}) == []
 
 
+class TestCacheScope:
+    """
+    The key has to carry the scope the answer was resolved in, or one tenant is
+    served another's host names.
+    """
+
+    CONFIG = {'enabled': True, 'source_type': 'db_query', 'model': 'hosts', 'cache_ttl': 60}
+
+    def test_same_question_different_inventory_gets_a_different_key(self):
+        a = dynamic_survey._cache_key('v', self.CONFIG, fake_template(pk=1, inventory_id=10))
+        b = dynamic_survey._cache_key('v', self.CONFIG, fake_template(pk=1, inventory_id=20))
+        assert a and b and a != b
+
+    def test_same_question_different_organization_gets_a_different_key(self):
+        a = dynamic_survey._cache_key('v', self.CONFIG, fake_template(pk=1, organization_id=1))
+        b = dynamic_survey._cache_key('v', self.CONFIG, fake_template(pk=1, organization_id=2))
+        assert a and b and a != b
+
+    def test_same_question_different_template_gets_a_different_key(self):
+        a = dynamic_survey._cache_key('v', self.CONFIG, fake_template(pk=1))
+        b = dynamic_survey._cache_key('v', self.CONFIG, fake_template(pk=2))
+        assert a and b and a != b
+
+    def test_identical_scope_reuses_the_key(self):
+        a = dynamic_survey._cache_key('v', self.CONFIG, fake_template())
+        b = dynamic_survey._cache_key('v', self.CONFIG, fake_template())
+        assert a == b
+
+    def test_no_template_means_no_key(self):
+        assert dynamic_survey._cache_key('v', self.CONFIG, None) is None
+
+    @patch('forail.main.services.dynamic_survey.cache')
+    @patch('forail.main.services.dynamic_survey._resolve_db_query')
+    def test_unscoped_resolution_is_not_cached(self, mock_resolve, mock_cache):
+        # Better to resolve every time than to write an entry every tenant reads.
+        mock_cache.get.return_value = None
+        mock_resolve.return_value = ['h1']
+        q = {'variable': 'v', 'dynamic_choices': dict(self.CONFIG)}
+        assert resolve_dynamic_choices(q) == ['h1']
+        mock_cache.set.assert_not_called()
+
+
 # ===== _resolve_db_query =====
 
 class TestDbQuery:
@@ -514,7 +565,7 @@ class TestResolveDynamicChoices:
     def test_cache_hit(self, mock_resolve, mock_cache):
         mock_cache.get.return_value = ['c1', 'c2']
         q = {'variable': 'v', 'dynamic_choices': {'enabled': True, 'source_type': 'db_query', 'model': 'hosts', 'cache_ttl': 60}}
-        result = resolve_dynamic_choices(q)
+        result = resolve_dynamic_choices(q, template=fake_template())
         assert result == ['c1', 'c2']
         mock_resolve.assert_not_called()
 
@@ -524,7 +575,7 @@ class TestResolveDynamicChoices:
         mock_cache.get.return_value = None
         mock_resolve.return_value = ['h1', 'h2']
         q = {'variable': 'v', 'dynamic_choices': {'enabled': True, 'source_type': 'db_query', 'model': 'hosts', 'cache_ttl': 120}}
-        result = resolve_dynamic_choices(q)
+        result = resolve_dynamic_choices(q, template=fake_template())
         assert result == ['h1', 'h2']
         mock_cache.set.assert_called_once()
         # Verify TTL is passed

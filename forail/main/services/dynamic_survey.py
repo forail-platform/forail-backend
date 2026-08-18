@@ -169,9 +169,35 @@ ALLOWED_DB_MODELS = {
 ALLOWED_DB_FIELDS = {'name', 'id', 'description'}
 
 
-def _cache_key(question_variable, source_config):
-    config_hash = hashlib.md5(json.dumps(source_config, sort_keys=True).encode()).hexdigest()
-    return f'{DYNAMIC_CHOICES_CACHE_PREFIX}{question_variable}_{config_hash}'
+def _cache_key(question_variable, source_config, template):
+    """
+    Cache key for one question's resolved choices.
+
+    The key must carry the scope the answer was resolved *in*, not just the
+    question and its config. Two job templates can hold the same question with
+    the same `dynamic_choices` block and different inventories -- or belong to
+    different organizations -- and a key made of the variable name and a config
+    hash alone is identical for both. The first request then fills the cache
+    with one tenant's host names and the second is served them.
+
+    Returns None when there is no template to scope by, which the caller treats
+    as "do not cache" rather than "cache globally".
+    """
+    if template is None:
+        return None
+
+    scope = (
+        getattr(template, 'pk', None),
+        getattr(template, 'organization_id', None),
+        getattr(template, 'inventory_id', None),
+    )
+    if scope[0] is None:
+        return None
+
+    digest = hashlib.sha256(
+        json.dumps([question_variable, source_config, scope], sort_keys=True, default=str).encode()
+    ).hexdigest()
+    return f'{DYNAMIC_CHOICES_CACHE_PREFIX}{digest}'
 
 
 def resolve_dynamic_choices(question, template=None):
@@ -189,10 +215,11 @@ def resolve_dynamic_choices(question, template=None):
     variable = question.get('variable', '')
 
     # Check cache
-    ck = _cache_key(variable, dc)
-    cached = cache.get(ck)
-    if cached is not None:
-        return cached
+    ck = _cache_key(variable, dc, template)
+    if ck is not None:
+        cached = cache.get(ck)
+        if cached is not None:
+            return cached
 
     choices = []
     try:
@@ -226,7 +253,7 @@ def resolve_dynamic_choices(question, template=None):
     choices = [str(c) for c in choices]
 
     # Cache results
-    if cache_ttl and cache_ttl > 0:
+    if ck is not None and cache_ttl and cache_ttl > 0:
         cache.set(ck, choices, timeout=cache_ttl)
 
     return choices
