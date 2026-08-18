@@ -31,6 +31,8 @@ if 'forail.main.services.dynamic_survey' in sys.modules:
 
 from forail.main.services import dynamic_survey
 from forail.main.services.dynamic_survey import (
+    survey_choice_list,
+    choice_error_message,
     validate_dynamic_choices_config,
     _resolve_api_endpoint,
     _resolve_jinja2,
@@ -619,3 +621,66 @@ class TestResolveDynamicChoices:
 
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])
+
+
+# ===== launch-time validation of dynamic answers =====
+
+class TestSurveyChoiceList:
+    """
+    What the launch path compares a submitted answer against.
+
+    Before this existed the dynamic branch was `pass`, with a comment saying the
+    values were checked at resolve time. They were not: the resolve endpoint only
+    hands options to the UI, so a direct API client could send any value for a
+    question that looks like a fixed dropdown.
+    """
+
+    STATIC = {'variable': 'env', 'choices': 'dev\nstaging\nprod\n'}
+    DYNAMIC = {'variable': 'host', 'dynamic_choices': {'enabled': True, 'source_type': 'db_query', 'model': 'hosts'}}
+
+    def test_static_choices_are_split(self):
+        choices, is_dynamic = survey_choice_list(self.STATIC)
+        assert choices == ['dev', 'staging', 'prod']
+        assert is_dynamic is False
+
+    def test_static_choices_as_a_list_pass_through(self):
+        choices, is_dynamic = survey_choice_list({'variable': 'x', 'choices': ['a', 'b']})
+        assert (choices, is_dynamic) == (['a', 'b'], False)
+
+    @patch('forail.main.services.dynamic_survey.resolve_dynamic_choices')
+    def test_dynamic_choices_are_resolved(self, mock_resolve):
+        mock_resolve.return_value = ['web-01', 'web-02']
+        choices, is_dynamic = survey_choice_list(self.DYNAMIC, template=fake_template())
+        assert (choices, is_dynamic) == (['web-01', 'web-02'], True)
+        assert mock_resolve.call_args[1]['template'] is not None
+
+    @patch('forail.main.services.dynamic_survey.resolve_dynamic_choices')
+    def test_a_failed_resolution_permits_nothing(self, mock_resolve):
+        # Fail closed: an unresolvable list means the answer cannot be checked,
+        # and accepting it would trust the caller for the one field this exists
+        # to constrain.
+        mock_resolve.side_effect = Exception('source down')
+        choices, is_dynamic = survey_choice_list(self.DYNAMIC, template=fake_template())
+        assert (choices, is_dynamic) == ([], True)
+
+    @patch('forail.main.services.dynamic_survey.resolve_dynamic_choices')
+    def test_none_resolution_permits_nothing(self, mock_resolve):
+        mock_resolve.return_value = None
+        assert survey_choice_list(self.DYNAMIC, template=fake_template()) == ([], True)
+
+
+class TestChoiceErrorMessage:
+
+    def test_static_lists_the_options(self):
+        msg = choice_error_message({'variable': 'env'}, 'x', ['dev', 'prod'], False)
+        assert "'env'" in msg and 'dev' in msg
+
+    def test_dynamic_counts_rather_than_prints(self):
+        # The list can hold up to MAX_CHOICES entries.
+        msg = choice_error_message({'variable': 'host'}, 'x', [f'h{i}' for i in range(500)], True)
+        assert '500 dynamic choices' in msg
+        assert 'h1' not in msg
+
+    def test_empty_dynamic_list_says_so(self):
+        msg = choice_error_message({'variable': 'host'}, 'x', [], True)
+        assert 'resolved to no options' in msg

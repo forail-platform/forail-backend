@@ -541,3 +541,49 @@ def validate_dynamic_choices_config(dc):
             errors.append("dynamic_choices jinja2 requires a non-empty 'template' string.")
 
     return errors
+
+
+def survey_choice_list(question, template=None):
+    """
+    The permitted values for a choice question, and whether they are dynamic.
+
+    For a dynamic question this resolves the list at the moment it is asked for
+    -- which, on the launch path, is the point of the exercise. Validation there
+    used to be skipped with the comment "validated at resolve time", but the
+    resolve endpoint only hands options to the UI; nothing on the launch path
+    ever compared the submitted value against them, so a direct API client could
+    pass any extra_var for a question that presents as a fixed dropdown.
+
+    A failed resolution yields an empty list, and an empty list rejects every
+    answer. That is deliberate: if the permitted values cannot be determined, the
+    request cannot be validated, and accepting it would mean trusting the caller
+    for exactly the field this check constrains. The choices could not have been
+    offered in the UI either.
+    """
+    dc = question.get('dynamic_choices') or {}
+    if dc.get('enabled'):
+        try:
+            resolved = resolve_dynamic_choices(question, template=template)
+        except Exception:
+            logger.exception('Failed to resolve dynamic choices for survey variable %s', question.get('variable'))
+            resolved = None
+        return list(resolved or []), True
+
+    choices = question.get('choices', [])
+    if isinstance(choices, str):
+        choices = [choice for choice in choices.splitlines() if choice.strip() != '']
+    return list(choices), False
+
+
+def choice_error_message(question, value, choices, is_dynamic):
+    """The message for a value that is not among a question's permitted ones."""
+    variable = question.get('variable')
+    if not is_dynamic:
+        return "Value %s for '%s' expected to be one of %s." % (value, variable, choices)
+    if not choices:
+        # Distinguish "resolved to nothing" from "not in the list". The first is
+        # usually a broken source, and reporting it as a bad answer sends the
+        # operator looking in the wrong place.
+        return "Value %s for '%s' could not be validated: its dynamic choices resolved to no options." % (value, variable)
+    # The list can hold up to MAX_CHOICES entries, so it is counted, not printed.
+    return "Value %s for '%s' expected to be one of its %s dynamic choices." % (value, variable, len(choices))
