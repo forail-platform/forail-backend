@@ -22,6 +22,7 @@ def _load(mod_name, rel_path):
 
 
 helpers = _load('obs_helpers', 'forail/main/observability/helpers.py')
+bootstrap = _load('obs_bootstrap', 'forail/main/observability/bootstrap.py')
 
 parse_resource_attributes = helpers.parse_resource_attributes
 parse_endpoint = helpers.parse_endpoint
@@ -152,3 +153,35 @@ class TestAggregateHealth(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestEnvSyncKeys(unittest.TestCase):
+    """Which settings a deployment can drive from the environment.
+
+    Codex M2: the chart offered one tenancy switch, and only that one was
+    mirrored into the Setting registry -- so an operator who turned tenancy on
+    got the tenancy features with no row-level security behind them, because
+    TENANCY_RLS_ENABLED stayed at its False default with no way to reach it.
+    """
+
+    TENANCY_KEYS = (
+        'TENANCY_ENABLED',
+        'TENANCY_RLS_ENABLED',
+        'TENANCY_STRICT_ISOLATION_ENABLED',
+        'TENANCY_RATE_LIMITING_ENABLED',
+    )
+
+    def test_every_tenancy_control_is_syncable(self):
+        for key in self.TENANCY_KEYS:
+            self.assertIn(key, bootstrap._ENV_SYNC_KEYS, f'{key} cannot be set from the environment')
+
+    def test_every_tenancy_control_is_parsed_as_a_boolean(self):
+        # Without this the Setting row stores the string "false", which is
+        # truthy everywhere it is read.
+        for key in self.TENANCY_KEYS:
+            self.assertIn(key, bootstrap._BOOL_KEYS)
+            self.assertIs(bootstrap._coerce_env_value(key, 'false'), False)
+            self.assertIs(bootstrap._coerce_env_value(key, 'true'), True)
+
+    def test_non_bool_keys_stay_strings(self):
+        self.assertEqual(bootstrap._coerce_env_value('OTEL_SERVICE_NAME', 'forail'), 'forail')
