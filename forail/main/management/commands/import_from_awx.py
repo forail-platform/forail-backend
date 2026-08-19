@@ -34,9 +34,11 @@ Example:
         --url https://awx.example.com --token $AWX_TOKEN --dry-run
 """
 
+import getpass
 import json
 import logging
 import os
+import sys
 
 import requests
 
@@ -129,11 +131,17 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('--url', required=True, help='Base URL of the source AWX install, e.g. https://awx.example.com')
-        parser.add_argument('--token', help='OAuth2 token for the source AWX API (preferred). '
-                                            'Prefer the AWX_TOKEN env var — CLI args are visible in ps/proc.')
+        parser.add_argument('--token-file', help='File containing the OAuth2 token for the source AWX API. '
+                                                 'The safest option: nothing is exposed in the process list, the '
+                                                 'environment, or shell history.')
+        parser.add_argument('--password-file', help='File containing the password for basic auth.')
+        parser.add_argument('--token', help='DEPRECATED — OAuth2 token on the command line. Visible in ps/proc and '
+                                            'shell history; will be removed in the next breaking release. Use '
+                                            '--token-file or the AWX_TOKEN env var.')
         parser.add_argument('--username', help='Username for basic auth (if no token). Env: AWX_USERNAME.')
-        parser.add_argument('--password', help='Password for basic auth (if no token). '
-                                               'Prefer the AWX_PASSWORD env var — CLI args are visible in ps/proc.')
+        parser.add_argument('--password', help='DEPRECATED — password on the command line, with the same exposure as '
+                                               '--token. Use --password-file, the AWX_PASSWORD env var, or leave it '
+                                               'out and be prompted.')
         parser.add_argument('--insecure', action='store_true', help='Do not verify the source TLS certificate.')
         parser.add_argument('--dry-run', action='store_true', help='Fetch and report what would change, then roll back without writing.')
         parser.add_argument('--grant-superusers', action='store_true',
@@ -148,20 +156,50 @@ class Command(BaseCommand):
         parser.add_argument('--resource', action='append', choices=RESOURCE_ORDER,
                             help='Limit to specific resource type(s); may be repeated. Default: all.')
 
+    def _read_secret_file(self, path, what):
+        """Read a secret from a file, trimming the trailing newline an editor adds."""
+        try:
+            with open(path, 'r') as handle:
+                return handle.read().strip()
+        except OSError as exc:
+            raise CommandError(f'Could not read the {what} from {path}: {exc}')
+
     def handle(self, *args, **options):
-        # M3: prefer secrets from the environment; CLI args leak via ps/proc,
-        # shell history and process accounting.
-        token = options.get('token') or os.environ.get('AWX_TOKEN')
+        # L2/M3: a secret on the command line is visible in ps/proc, in shell
+        # history and in process accounting, and it is visible to every other
+        # user on the box for as long as the import runs -- which is not brief.
+        # In order of preference: a file, the environment, an interactive
+        # prompt, and only then the deprecated flag.
+        token = None
+        if options.get('token_file'):
+            token = self._read_secret_file(options['token_file'], 'token')
+        token = token or os.environ.get('AWX_TOKEN') or options.get('token')
+
         username = options.get('username') or os.environ.get('AWX_USERNAME')
-        password = options.get('password') or os.environ.get('AWX_PASSWORD')
+
+        password = None
+        if options.get('password_file'):
+            password = self._read_secret_file(options['password_file'], 'password')
+        password = password or os.environ.get('AWX_PASSWORD') or options.get('password')
+
         if options.get('token') or options.get('password'):
             self.stderr.write(self.style.WARNING(
-                'Passing --token/--password on the command line is insecure (visible in '
-                'ps/proc and shell history). Prefer AWX_TOKEN / AWX_PASSWORD env vars.'))
+                'DEPRECATED: --token/--password put a secret in the process list and shell '
+                'history, and will be removed in the next breaking release. Use --token-file / '
+                '--password-file, or the AWX_TOKEN / AWX_PASSWORD environment variables.'))
+
+        # Prompting is last, and only when someone is there to answer: a
+        # non-interactive run must fail with a usable message rather than block
+        # on a terminal read that never returns.
+        if not token and username and not password and sys.stdin is not None and sys.stdin.isatty():
+            password = getpass.getpass(f'Password for {username} at {options["url"]}: ')
 
         if not token and not username:
-            raise CommandError('Provide a token (--token or AWX_TOKEN), or a username '
-                               '(--username/AWX_USERNAME with --password/AWX_PASSWORD).')
+            raise CommandError('Provide a token (--token-file, AWX_TOKEN or --token), or a username '
+                               '(--username/AWX_USERNAME with --password-file, AWX_PASSWORD or --password).')
+        if not token and not password:
+            raise CommandError('No password supplied for basic auth. Use --password-file, the AWX_PASSWORD '
+                               'environment variable, or run interactively to be prompted.')
 
         # L1: --insecure sends the token / basic-auth credentials over a
         # connection with no certificate verification.
