@@ -111,7 +111,38 @@ the system automatically filters by the job template's inventory.
 
 ## Source: External API
 
-Fetch choices from an HTTP endpoint. Supports JSON responses.
+Fetch choices from an HTTPS endpoint. Supports JSON responses.
+
+> **The destination must be named by an administrator.** The server makes this
+> request from inside the cluster, and the URL comes from the survey — so
+> without a destination policy, whoever can edit a job template can point the
+> server at cloud metadata, at a service bound to loopback, or at a neighbouring
+> pod, and read the reply through the choices endpoint. Hosts are therefore
+> listed in `SURVEY_DYNAMIC_CHOICES_API_ALLOWLIST` in the server settings file,
+> matched exactly. The list is **empty by default, which disables this source
+> type**.
+>
+> ```python
+> # /etc/tower/conf.d/dynamic_surveys.py
+> SURVEY_DYNAMIC_CHOICES_API_ALLOWLIST = ['cmdb.internal.example.com']
+> ```
+>
+> Rules that apply even to a listed host:
+>
+> - **HTTPS only.**
+> - The name is re-checked **after DNS resolution**. Private addresses are
+>   allowed — an on-prem CMDB on `10.0.0.0/8` is the ordinary case — but
+>   loopback, link-local (`169.254.0.0/16`, where cloud metadata lives),
+>   multicast and reserved addresses are refused. A listed name whose DNS answer
+>   points inward does not get through.
+> - **Redirects are never followed.** The first hop is the one that was checked;
+>   every hop after it would be the peer's choice.
+> - Methods are limited to `GET` and `POST`, `timeout` is capped at 30 seconds,
+>   and the response is read up to 1 MiB.
+>
+> A URL that is not permitted is rejected when the survey is **saved**, so the
+> editor is told rather than left with a question that silently resolves to
+> nothing.
 
 ```json
 {
@@ -131,12 +162,12 @@ Fetch choices from an HTTP endpoint. Supports JSON responses.
 
 | Field         | Type    | Default | Description                                |
 | ------------- | ------- | ------- | ------------------------------------------ |
-| `url`         | string  | —       | HTTP endpoint URL (required)               |
+| `url`         | string  | —       | HTTPS endpoint URL (required, host must be allowlisted) |
 | `method`      | string  | `GET`   | HTTP method (`GET` or `POST`)              |
-| `headers`     | object  | `{}`    | Custom HTTP headers                        |
+| `headers`     | object  | `{}`    | Custom HTTP headers. **Stored in the survey spec in plaintext** — anyone who can read the job template can read them |
 | `json_path`   | string  | `""`    | Dot-notation path to the array in response |
 | `value_field` | string  | `""`    | Field to extract from objects in the array |
-| `timeout`     | integer | `10`    | Request timeout in seconds                 |
+| `timeout`     | integer | `10`    | Request timeout in seconds (capped at 30)  |
 | `body`        | object  | `{}`    | Request body for POST method               |
 
 ### Response Formats
@@ -266,7 +297,10 @@ Requires `start` permission on the job template (same as launching).
 
 1. `dynamic_choices` is only valid on `multiplechoice` and `multiselect` types
 2. When `dynamic_choices.enabled` is `true`, static `choices` field is not required
-3. During job launch, answers to dynamic choice questions skip static choice validation
+3. During job launch, an answer to a dynamic-choices question is checked against
+   the **resolved** list, not against the static `choices` field. If the source
+   cannot be resolved the list is empty and every answer is rejected — an answer
+   that cannot be validated is not accepted
 4. The `source_type` must be one of: `db_query`, `api_endpoint`. `jinja2` is
    rejected unless `SURVEY_DYNAMIC_CHOICES_JINJA2_ENABLED` is `True` in the
    server settings file
@@ -293,16 +327,22 @@ Requires `start` permission on the job template (same as launching).
 ## Caching
 
 - Resolved choices are cached in Django's cache backend (Redis)
-- Cache key includes the variable name and full source configuration hash
+- The cache key covers the question, the source configuration, **and the scope
+  the answer was resolved in** — job template, organization and inventory. It
+  used to be the variable name plus a config hash alone, so two templates with
+  the same question and different inventories shared one entry and the second
+  caller was served the first one's host names
+- Nothing is cached when there is no template to scope by
 - Default TTL: 60 seconds
 - Set `cache_ttl: 0` to disable caching
-- Cache is shared across all users and launch requests
+- Within one scope, the cache is shared across users
 
 ---
 
 ## Limitations
 
-- Maximum 500 choices returned per question (to prevent UI issues)
+- Maximum 500 choices returned per question (to prevent UI issues), applied to
+  every source type
 - Jinja2 as a source type is withdrawn; where an operator has re-enabled it,
   templates render in a Jinja2 sandbox with globals removed and a reduced filter
   set — hardening, not a trust boundary
