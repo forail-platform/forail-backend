@@ -232,12 +232,11 @@ def tenant_queue_name(org_id):
 # that references Organization.id — directly ('organization_id') for most
 # tables or via a subquery for indirect relationships.
 #
-# Tables with nullable organization_id are included; the RLS policy handles
-# NULLs by treating them as "visible to everyone" (no tenant scope). This is
-# intentional for AWX's genuinely global, org-less resources (a credential or
-# label created with organization=NULL is shared platform-wide). Do NOT add a
-# table here whose rows are always tenant-owned unless it forbids NULL org, or
-# those NULL rows would leak across every tenant (see needtofix M5).
+# Tables with nullable organization_id are included. Whether a NULL organization
+# means "shared with the whole platform" or "nobody set it" is decided per table
+# by RLS_GLOBAL_NULL_ORG_TABLES below -- it used to be assumed to mean the first
+# for every table, which is what made a single missed assignment enough to turn
+# a tenant-owned row into cross-tenant data (see needtofix M5, Codex M6).
 #
 # Coverage note (needtofix M4): several models that *look* org-scoped
 # (Project, WorkflowJobTemplate, Schedule, workflow nodes, job events) do not
@@ -287,12 +286,51 @@ RLS_TABLES_INDIRECT = [
 ]
 
 
+# Tables where `organization_id IS NULL` is a deliberate sharing or ownership
+# mechanism inherited from AWX, and the row really is meant to be visible
+# outside any one tenant:
+#
+#   main_credential           NULL org = a user-owned (personal) credential
+#   main_oauth2application    NULL org = a user-owned application
+#   main_executionenvironment NULL org = a globally shared execution environment
+#   main_unifiedjobtemplate   system job templates carry no organization
+#   main_unifiedjob           ...and neither do their runs
+#
+# Everything else is scoped strictly: a NULL organization there is an unset
+# field, not a shared resource, and the row stays invisible to a tenant-scoped
+# request. Hidden is the safe direction for an ambiguous row; visible-to-all is
+# not. An unscoped request (superuser, or no tenant context) still sees it, so
+# nothing becomes unreachable -- and every Forail-authored table is in this
+# group, which is where an org is assigned by our own code rather than by AWX's
+# long-standing conventions.
+#
+# Adding a table here is a decision that its NULL rows may be read by every
+# tenant. Do not add one to silence a "resource disappeared" report; assign the
+# organization instead.
+RLS_GLOBAL_NULL_ORG_TABLES = frozenset(
+    {
+        'main_credential',
+        'main_oauth2application',
+        'main_executionenvironment',
+        'main_unifiedjobtemplate',
+        'main_unifiedjob',
+    }
+)
+
+
+def null_org_is_global(table):
+    """Whether rows of ``table`` with no organization are visible to every tenant."""
+    return table in RLS_GLOBAL_NULL_ORG_TABLES
+
+
 def build_rls_policy_sql(table, org_column='organization_id'):
     """Return (create_sql, drop_sql) for a permissive RLS policy.
 
     The policy allows the row when:
     1. ``organization_id`` matches ``forail.current_tenant_id``, OR
-    2. ``organization_id`` IS NULL (global/shared resources), OR
+    2. ``organization_id`` IS NULL **and** this table is listed in
+       ``RLS_GLOBAL_NULL_ORG_TABLES`` (a NULL org is a sharing mechanism there,
+       not an unset field), OR
     3. The session variable is empty / unset (no tenant context — backwards
        compatible for non-tenant requests and superusers).
     """
@@ -303,12 +341,13 @@ def build_rls_policy_sql(table, org_column='organization_id'):
     # before the cast is evaluated. NULLIF collapses '' to NULL, which casts
     # cleanly and is caught by the IS NULL branch (→ all rows visible).
     tenant = "NULLIF(current_setting('forail.current_tenant_id', true), '')"
+    null_branch = f'OR {org_column} IS NULL ' if null_org_is_global(table) else ''
     create = (
         f'CREATE POLICY {policy_name} ON {table} '
         f'AS PERMISSIVE FOR ALL '
         f'USING ('
         f'{org_column} = {tenant}::int '
-        f'OR {org_column} IS NULL '
+        f'{null_branch}'
         f'OR {tenant} IS NULL'
         f');'
     )
@@ -319,10 +358,17 @@ def build_rls_policy_sql(table, org_column='organization_id'):
 def build_rls_policy_sql_indirect(table, fk_column, parent_table, parent_org_column):
     """Return (create_sql, drop_sql) for an indirect RLS policy.
 
-    Uses a subquery to resolve the organization from a parent table.
+    Uses a subquery to resolve the organization from a parent table. Whether a
+    NULL organization on the *parent* is global is decided by the parent's entry
+    in ``RLS_GLOBAL_NULL_ORG_TABLES``, since that is the row that carries it.
+
+    ``{fk_column} IS NULL`` stays unconditionally: a row with no parent at all
+    has no organization to compare against, and hiding it would make orphans
+    unreachable rather than merely unscoped.
     """
     policy_name = f'tenant_isolation_{table}'
     tenant = "NULLIF(current_setting('forail.current_tenant_id', true), '')"
+    parent_null_branch = f'OR {parent_org_column} IS NULL' if null_org_is_global(parent_table) else ''
     create = (
         f'CREATE POLICY {policy_name} ON {table} '
         f'AS PERMISSIVE FOR ALL '
@@ -330,7 +376,7 @@ def build_rls_policy_sql_indirect(table, fk_column, parent_table, parent_org_col
         f'{fk_column} IN ('
         f'SELECT id FROM {parent_table} WHERE '
         f'{parent_org_column} = {tenant}::int '
-        f'OR {parent_org_column} IS NULL'
+        f'{parent_null_branch}'
         f') '
         f'OR {fk_column} IS NULL '
         f'OR {tenant} IS NULL'

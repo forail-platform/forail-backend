@@ -153,3 +153,42 @@ METRICS_SUBSYSTEM_CONFIG = {
         },
     }
 }
+
+
+# -----------------------------
+# -- Dynamic survey choices  --
+# -----------------------------
+# A survey question may resolve its choices from the database, from an external
+# API, or by rendering a Jinja2 template. The last one executes a template that
+# a job-template editor supplies, inside the web process, whenever a user with
+# `start` permission opens the launch prompt -- which is a code-execution path,
+# not a formatting convenience.
+#
+# It is therefore off, and deliberately NOT a database-backed setting: leaving
+# it out of /api/v2/settings/ means the API surface used to store a payload
+# cannot also be used to enable its execution. Turning it on takes a change to
+# a settings file on the server.
+#
+# When on, templates render in a Jinja2 sandbox with globals removed and a
+# reduced filter set (see forail/main/services/dynamic_survey.py). Treat that as
+# hardening rather than a boundary: prefer the db_query or api_endpoint source
+# types, which need no code execution at all.
+SURVEY_DYNAMIC_CHOICES_JINJA2_ENABLED = False
+
+
+# The `api_endpoint` source makes the server fetch a URL taken from the survey.
+# Without a destination policy that is an SSRF primitive: whoever edits a job
+# template chooses the address and the server reaches it from inside the
+# cluster, then hands the JSON back to any user with `start` permission.
+#
+# So destinations are named here, by an operator, and matched exactly -- no
+# wildcards, no suffix matching. Empty (the default) disables the source type.
+# https only; redirects are never followed; the response is read bounded.
+#
+#     SURVEY_DYNAMIC_CHOICES_API_ALLOWLIST = ['cmdb.internal.example.com']
+#
+# Private addresses are allowed on purpose -- an on-prem CMDB is the ordinary
+# case, and naming the host here is the trust decision. Loopback, link-local
+# (cloud metadata), multicast and reserved addresses are refused even for a
+# listed host, so a hijacked DNS record cannot redirect the fetch inward.
+SURVEY_DYNAMIC_CHOICES_API_ALLOWLIST = []

@@ -23,9 +23,22 @@ _ENV_SYNC_KEYS = (
     'OTEL_TRACES_SAMPLER',
     'OTEL_TRACES_SAMPLER_ARG',
     'TENANCY_ENABLED',
+    # Codex M2: TENANCY_ENABLED synced but the controls that actually enforce
+    # isolation did not, so a deployment could set the one flag it was offered
+    # and get tenancy features with no row-level security behind them. Turning
+    # tenancy on through the environment now reaches the whole set.
+    'TENANCY_RLS_ENABLED',
+    'TENANCY_STRICT_ISOLATION_ENABLED',
+    'TENANCY_RATE_LIMITING_ENABLED',
 )
 
-_BOOL_KEYS = ('OTEL_ENABLED', 'TENANCY_ENABLED')
+_BOOL_KEYS = (
+    'OTEL_ENABLED',
+    'TENANCY_ENABLED',
+    'TENANCY_RLS_ENABLED',
+    'TENANCY_STRICT_ISOLATION_ENABLED',
+    'TENANCY_RATE_LIMITING_ENABLED',
+)
 
 
 def _coerce_env_value(key, raw):

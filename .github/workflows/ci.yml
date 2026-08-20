@@ -38,9 +38,8 @@ jobs:
           # pytest run cross-contaminates sys.modules. So run each in its own
           # process with the inifile addopts (pytest-django flags) cleared.
           # Excluded: test_integration (needs a live backend),
-          # test_audit_trail (pulls full app deps incl. psycopg),
-          # test_dynamic_survey_standalone (order-dependent Django stub).
-          for f in $(ls tests_standalone/test_*.py | grep -vE 'test_integration|test_audit_trail|test_dynamic_survey_standalone'); do
+          # test_audit_trail (pulls full app deps incl. psycopg).
+          for f in $(ls tests_standalone/test_*.py | grep -vE 'test_integration|test_audit_trail'); do
             echo "::group::$f"
             python -m pytest "$f" -o addopts="" -q
             echo "::endgroup::"

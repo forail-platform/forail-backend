@@ -197,6 +197,8 @@ build_rls_policy_sql = helpers.build_rls_policy_sql
 build_rls_policy_sql_indirect = helpers.build_rls_policy_sql_indirect
 RLS_TABLES_DIRECT = helpers.RLS_TABLES_DIRECT
 RLS_TABLES_INDIRECT = helpers.RLS_TABLES_INDIRECT
+RLS_GLOBAL_NULL_ORG_TABLES = helpers.RLS_GLOBAL_NULL_ORG_TABLES
+null_org_is_global = helpers.null_org_is_global
 
 
 class TestBuildRlsPolicySql(unittest.TestCase):
@@ -221,8 +223,46 @@ class TestBuildRlsPolicySql(unittest.TestCase):
         create, _ = build_rls_policy_sql('main_inventory', 'organization_id')
         # Bypass when session var is unset/empty — NULLIF('') collapses to NULL.
         self.assertIn("NULLIF(current_setting('forail.current_tenant_id', true), '') IS NULL", create)
-        # Bypass when org column is NULL (shared resources)
-        self.assertIn('organization_id IS NULL', create)
+
+    def test_null_org_bypass_only_for_globally_shared_tables(self):
+        # Codex M6: this branch used to be emitted for every table, so one row
+        # saved without an organization was readable by every tenant.
+        shared, _ = build_rls_policy_sql('main_credential', 'organization_id')
+        scoped, _ = build_rls_policy_sql('main_scanner', 'organization_id')
+        self.assertIn('OR organization_id IS NULL', shared)
+        self.assertNotIn('OR organization_id IS NULL', scoped)
+
+    def test_every_forail_table_is_scoped_strictly(self):
+        # The Forail-authored tables assign the organization in our own code,
+        # so a NULL there is an unset field rather than AWX's sharing mechanism.
+        forail_tables = [
+            'main_eventrule', 'main_outboundwebhook', 'main_eventlog',
+            'main_hostfactsnapshot', 'main_driftdetection', 'main_driftalertrule',
+            'main_driftalert', 'main_policy', 'main_policydecision', 'main_scanner',
+            'main_scanresult', 'main_servicecatalogitem', 'main_auditevent',
+        ]
+        for table in forail_tables:
+            self.assertFalse(null_org_is_global(table), f'{table} must not expose NULL-org rows')
+            create, _ = build_rls_policy_sql(table, 'organization_id')
+            self.assertNotIn('OR organization_id IS NULL', create)
+
+    def test_global_tables_are_a_closed_list(self):
+        # Every entry is a deliberate decision that NULL-org rows may be read by
+        # any tenant; the assertion is here so growing the list is not quiet.
+        self.assertEqual(
+            RLS_GLOBAL_NULL_ORG_TABLES,
+            frozenset({
+                'main_credential',
+                'main_oauth2application',
+                'main_executionenvironment',
+                'main_unifiedjobtemplate',
+                'main_unifiedjob',
+            }),
+        )
+
+    def test_every_global_table_is_actually_under_rls(self):
+        covered = {table for table, _ in RLS_TABLES_DIRECT}
+        self.assertTrue(RLS_GLOBAL_NULL_ORG_TABLES.issubset(covered))
 
     def test_create_is_permissive(self):
         create, _ = build_rls_policy_sql('main_inventory', 'organization_id')
@@ -264,6 +304,19 @@ class TestBuildRlsPolicySqlIndirect(unittest.TestCase):
         self.assertIn("IS NULL", create)
         # needtofix L6: NULLIF-guarded empty/unset sentinel (was `= ''`).
         self.assertIn("NULLIF(current_setting('forail.current_tenant_id', true), '') IS NULL", create)
+
+    def test_parent_null_org_follows_the_parent_table(self):
+        # A host is visible through its inventory, so whether a NULL org is
+        # global is the inventory's question, not the host's. main_inventory is
+        # not globally shared, so hosts of an org-less inventory stay hidden
+        # from a scoped tenant.
+        create, _ = build_rls_policy_sql_indirect(
+            'main_host', 'inventory_id', 'main_inventory', 'organization_id'
+        )
+        self.assertNotIn('OR organization_id IS NULL)', create)
+        # An orphan row keeps its bypass: no parent means no organization to
+        # compare, and hiding it would make it unreachable rather than unscoped.
+        self.assertIn('OR inventory_id IS NULL', create)
 
     def test_drop_contains_policy_name(self):
         _, drop = build_rls_policy_sql_indirect(
