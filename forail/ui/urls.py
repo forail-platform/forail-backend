@@ -1,12 +1,17 @@
 from django.urls import re_path
 from django.utils.translation import gettext_lazy as _
-from django.views.generic.base import TemplateView
+from django.views.generic.base import RedirectView, TemplateView
 
 from forail.main.utils.licensing import server_product_name
 
 
-class IndexView(TemplateView):
-    template_name = 'index.html'
+class IndexView(RedirectView):
+    # /ui_legacy/ was the upstream AWX React UI. Forail never builds it --
+    # forail-frontend serves the site root -- so the route stays (the
+    # UI_LEGACY_ENABLED setting and old bookmarks point at it) and sends the
+    # browser to the real UI.
+    url = '/'
+    permanent = False
 
 
 class MigrationsNotran(TemplateView):
