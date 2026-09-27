@@ -17,16 +17,21 @@ logger = logging.getLogger('forail.sso.views')
 
 
 class BaseRedirectView(RedirectView):
-    permanent = True
+    # Not permanent: a browser caches a 301, and where SSO lands is a
+    # deployment decision that can change.
+    permanent = False
 
     def get_redirect_url(self, *args, **kwargs):
-        last_path = self.request.COOKIES.get('lastPath', '')
-        last_path = urllib.parse.quote(urllib.parse.unquote(last_path).strip('"'))
-        url = reverse('ui:index')
-        if last_path:
-            return '%s#%s' % (url, last_path)
-        else:
-            return url
+        # The frontend is forail-frontend, served at the site root with a
+        # browser-history router. Upstream AWX sent users to the legacy UI
+        # with the path as a fragment; that page is never built here, so a
+        # successful SSO login used to end on a blank screen.
+        last_path = urllib.parse.unquote(self.request.COOKIES.get('lastPath', '')).strip('"')
+        # Only same-site absolute paths: '//evil.example' and anything with a
+        # scheme would turn the cookie into an open redirect.
+        if last_path.startswith('/') and not last_path.startswith('//') and '\\' not in last_path:
+            return urllib.parse.quote(last_path, safe="/?=&-_.~%")
+        return '/'
 
 
 sso_error = BaseRedirectView.as_view()
