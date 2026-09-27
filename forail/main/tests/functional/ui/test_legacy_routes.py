@@ -25,3 +25,16 @@ def test_upgrade_page_renders_while_migrations_are_pending():
     body = response.content.decode()
     assert 'data-cy="migration-message-upgrade"' in body
     assert 'is currently upgrading' in body
+
+
+def test_upgrade_page_needs_no_static_files():
+    body = _get('/ui_legacy/migrations_notran/').content.decode()
+    assert '/static/' not in body
+    assert 'pendo' not in body
+
+
+def test_browsable_api_assets_are_collected_from_forail_static():
+    from django.contrib.staticfiles import finders
+
+    for asset in ('media/logo-header.svg', 'media/favicon.ico'):
+        assert finders.find(asset), asset
