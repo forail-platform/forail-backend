@@ -38,3 +38,21 @@ def test_browsable_api_assets_are_collected_from_forail_static():
 
     for asset in ('media/logo-header.svg', 'media/favicon.ico'):
         assert finders.find(asset), asset
+
+
+def test_site_root_on_the_api_process_points_at_the_api():
+    response = _get('/')
+    assert response.status_code == 302
+    assert response['Location'] == '/api/'
+
+
+def test_frontend_routes_are_not_handled_by_the_api_process():
+    # These used to fall into a catch-all that rendered index_forail.html,
+    # a template that was never on any template path: a 500 for every
+    # non-API URL that reached the backend directly.
+    import pytest
+    from django.urls import Resolver404
+
+    for path in ('/jobs/12', '/templates/', '/some/frontend/route'):
+        with pytest.raises(Resolver404):
+            resolve(path)
