@@ -373,3 +373,95 @@ def test_managed_types_are_matched_not_overwritten(fake_awx, monkeypatch):
     call_command('import_from_awx', url='https://awx.example.com', token='t', trust_injectors=True)
     machine.refresh_from_db()
     assert machine.injectors == before
+
+
+# --- M3: secrets reach the client without going through argv ---
+
+
+@pytest.fixture
+def client_args(mocker):
+    seen = {}
+
+    class Recording(FakeAWXClient):
+        def __init__(self, base_url, token=None, username=None, password=None, **kwargs):
+            seen.update(token=token, username=username, password=password)
+            super().__init__()
+
+    mocker.patch('forail.main.management.commands.import_from_awx.AWXClient', Recording)
+    return seen
+
+
+def _run(**kw):
+    from io import StringIO
+
+    err = StringIO()
+    call_command('import_from_awx', url='https://awx.example.com', resource=['organizations'], stderr=err, stdout=StringIO(), **kw)
+    return err.getvalue()
+
+
+@pytest.mark.django_db
+def test_token_from_a_file(client_args, tmp_path, monkeypatch):
+    monkeypatch.delenv('AWX_TOKEN', raising=False)
+    f = tmp_path / 'token'
+    f.write_text('s3cret-token\n')  # trailing newline from an editor is trimmed
+    err = _run(token_file=str(f))
+    assert client_args['token'] == 's3cret-token'
+    assert 'DEPRECATED' not in err
+
+
+@pytest.mark.django_db
+def test_token_from_the_environment(client_args, monkeypatch):
+    monkeypatch.setenv('AWX_TOKEN', 'env-token')
+    _run()
+    assert client_args['token'] == 'env-token'
+
+
+@pytest.mark.django_db
+def test_file_wins_over_environment(client_args, tmp_path, monkeypatch):
+    monkeypatch.setenv('AWX_TOKEN', 'env-token')
+    f = tmp_path / 'token'
+    f.write_text('file-token')
+    _run(token_file=str(f))
+    assert client_args['token'] == 'file-token'
+
+
+@pytest.mark.django_db
+def test_password_from_file_or_environment(client_args, tmp_path, monkeypatch):
+    monkeypatch.delenv('AWX_TOKEN', raising=False)
+    monkeypatch.setenv('AWX_USERNAME', 'admin')
+    monkeypatch.setenv('AWX_PASSWORD', 'env-pw')
+    _run()
+    assert (client_args['username'], client_args['password']) == ('admin', 'env-pw')
+
+    f = tmp_path / 'pw'
+    f.write_text('file-pw\n')
+    _run(password_file=str(f))
+    assert client_args['password'] == 'file-pw'
+
+
+@pytest.mark.django_db
+def test_secret_on_the_command_line_still_works_but_warns(client_args, monkeypatch):
+    monkeypatch.delenv('AWX_TOKEN', raising=False)
+    err = _run(token='argv-token')
+    assert client_args['token'] == 'argv-token'
+    assert 'DEPRECATED' in err
+
+
+@pytest.mark.django_db
+def test_no_password_and_no_terminal_fails_instead_of_hanging(client_args, monkeypatch):
+    from django.core.management.base import CommandError
+
+    for var in ('AWX_TOKEN', 'AWX_PASSWORD'):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setattr('sys.stdin', None)
+    with pytest.raises(CommandError, match='No password supplied'):
+        _run(username='admin')
+
+
+@pytest.mark.django_db
+def test_unreadable_secret_file_is_a_clear_error(client_args, tmp_path, monkeypatch):
+    from django.core.management.base import CommandError
+
+    monkeypatch.delenv('AWX_TOKEN', raising=False)
+    with pytest.raises(CommandError, match='Could not read the token'):
+        _run(token_file=str(tmp_path / 'missing'))
