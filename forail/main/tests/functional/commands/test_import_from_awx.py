@@ -240,8 +240,15 @@ def test_import_rbac_role_assignments(fake_awx):
     assert alice in org.admin_role.members.all()
     # Team grant: the JT execute_role inherits from the team's member_role.
     assert team.member_role in jt.execute_role.parents.all()
-    # Singleton: bob became a system auditor.
+    # Singleton system roles are NOT honoured without --grant-superusers (M1).
     bob.refresh_from_db()
+    assert not bob.is_system_auditor
+
+
+@pytest.mark.django_db
+def test_import_rbac_system_roles_with_opt_in(fake_awx):
+    call_command('import_from_awx', url='https://awx.example.com', token='t', grant_superusers=True)
+    bob = User.objects.get(username='bob')
     assert bob.is_system_auditor
 
 
@@ -272,3 +279,43 @@ def test_import_is_idempotent(fake_awx):
     assert JobTemplate.objects.filter(name='jt').count() == 1
     assert WorkflowJobTemplateNode.objects.filter(identifier='node-a').count() == 1
     assert Schedule.objects.filter(name='nightly').count() == 1
+
+
+# --- M1: the source cannot make anyone a superuser unless the operator opts in ---
+
+
+@pytest.fixture
+def system_admin_role(monkeypatch):
+    """Add a system_administrator singleton role held by alice on the source."""
+    monkeypatch.setitem(AWX_DATA, 'roles', AWX_DATA['roles'] + [{'id': 203, 'role_field': 'system_administrator', 'summary_fields': {}}])
+    monkeypatch.setitem(SUB_DATA, ('roles', 203, 'users'), [{'id': 10}])
+
+
+@pytest.mark.django_db
+def test_source_superuser_flag_is_ignored_by_default(fake_awx, system_admin_role):
+    call_command('import_from_awx', url='https://awx.example.com', token='t')
+    # 'root' is is_superuser on the source; alice holds system_administrator.
+    assert not User.objects.get(username='root').is_superuser
+    assert not User.objects.get(username='alice').is_superuser
+
+
+@pytest.mark.django_db
+def test_superuser_grants_need_the_opt_in_and_are_audited(fake_awx, system_admin_role):
+    from forail.main.models.audit import AuditEvent
+
+    call_command('import_from_awx', url='https://awx.example.com', token='t', grant_superusers=True)
+    assert User.objects.get(username='root').is_superuser
+    assert User.objects.get(username='alice').is_superuser
+    # The bulk import disables the activity stream; the dedicated audit log
+    # must still record every promotion.
+    granted = set(AuditEvent.objects.filter(action='superuser_granted').values_list('resource_name', flat=True))
+    assert {'root', 'alice'} <= granted
+
+
+@pytest.mark.django_db
+def test_import_never_demotes_a_local_superuser(fake_awx):
+    # Forail's bootstrap admin shares a username with a non-superuser on the source.
+    User.objects.create_superuser('alice', 'admin@forail.local', 'pw')
+    call_command('import_from_awx', url='https://awx.example.com', token='t')
+    assert User.objects.get(username='alice').is_superuser
+
