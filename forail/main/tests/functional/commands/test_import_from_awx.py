@@ -492,3 +492,48 @@ def test_report_groups_what_the_operator_must_act_on(fake_awx, source_injectors)
     assert skipped < injectors < secrets
     assert 'Credential "cloud-cred": 1 secret field(s)' in report
     assert 'Privileges GRANTED' not in report
+
+
+@pytest.mark.django_db
+def test_dry_run_report_file_lists_every_object_by_name(fake_awx, source_injectors, tmp_path):
+    import json
+
+    path = tmp_path / 'report.json'
+    call_command('import_from_awx', url='https://awx.example.com', token='t', dry_run=True, report_file=str(path))
+    report = json.loads(path.read_text())
+
+    assert report['format'] == 'forail-import-report/1'
+    assert report['dry_run'] is True
+    assert report['source'] == 'https://awx.example.com'
+    assert report['options'] == {'grant_superusers': False, 'trust_injectors': False}
+    objs = report['objects']
+    assert sorted(objs['user']['created']) == ['alice', 'bob', 'root']
+    assert objs['job_template']['created'] == ['Acme / jt']
+    assert objs['workflow_node']['created'] == ['wf / node-a', 'wf / node-b']
+    assert objs['schedule']['created'] == ['jt / nightly']
+    assert report['secret_fields_pending'] == 2
+    assert any('My Cloud' in w for w in report['warnings']['injectors'])
+    # Still a dry run: nothing was written to the database.
+    assert not Organization.objects.filter(name='Acme').exists()
+
+
+@pytest.mark.django_db
+def test_rerun_report_shows_updates_not_creates(fake_awx, tmp_path):
+    import json
+
+    call_command('import_from_awx', url='https://awx.example.com', token='t')
+    path = tmp_path / 'report.json'
+    call_command('import_from_awx', url='https://awx.example.com', token='t', dry_run=True, report_file=str(path))
+    objs = json.loads(path.read_text())['objects']
+    assert objs['organization'] == {'created': [], 'updated': ['Acme']}
+    assert objs['credential']['updated'] == ['Acme / cloud-cred']
+
+
+@pytest.mark.django_db
+def test_unwritable_report_file_does_not_fail_the_import(fake_awx, tmp_path):
+    from io import StringIO
+
+    err = StringIO()
+    call_command('import_from_awx', url='https://awx.example.com', token='t', report_file=str(tmp_path / 'no' / 'such' / 'dir.json'), stderr=err, stdout=StringIO())
+    assert 'Could not write the report' in err.getvalue()
+    assert Organization.objects.filter(name='Acme').exists()

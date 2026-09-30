@@ -102,13 +102,17 @@ class ImportContext:
             'notification_template', 'schedule')}
         self.created = {}
         self.updated = {}
+        # kind -> {'created': [label, ...], 'updated': [...]} for --report-file
+        self.objects = {}
         self.secret_fields_pending = 0
         self.role_grants = 0
         self.warnings = []
 
-    def record(self, kind, created):
+    def record(self, kind, created, label=None):
         d = self.created if created else self.updated
         d[kind] = d.get(kind, 0) + 1
+        if label is not None:
+            self.objects.setdefault(kind, {'created': [], 'updated': []})['created' if created else 'updated'].append(label)
 
     def warn(self, msg, kind='skipped'):
         """Record something the operator has to see; ``kind`` is a WARNING_KINDS key."""
@@ -169,6 +173,10 @@ class Command(BaseCommand):
                                  'render into env/extra-vars/files at job-execution time, so an untrusted source could '
                                  'ship an injector that runs attacker code. Without this flag the type is imported '
                                  'without its injectors and an admin must re-approve them.')
+        parser.add_argument('--report-file',
+                            help='Also write the report as JSON to this path: every object that would be created or '
+                                 'updated, by name, plus every warning by kind. Pair it with --dry-run to review a '
+                                 'migration before running it.')
         parser.add_argument('--resource', action='append', choices=RESOURCE_ORDER,
                             help='Limit to specific resource type(s); may be repeated. Default: all.')
 
@@ -286,6 +294,8 @@ class Command(BaseCommand):
             raise CommandError('AWX API error during import: %s' % exc)
 
         self._report(ctx)
+        if options.get('report_file'):
+            self._write_report_file(options['report_file'], options['url'], ctx)
 
     # ----- helpers ---------------------------------------------------------
 
@@ -307,10 +317,23 @@ class Command(BaseCommand):
             clean[k] = v
         return clean, n
 
+    @staticmethod
+    def _label(kind, obj):
+        """A human-readable identity for the report: names are unique only within a parent."""
+        if kind == 'user':
+            return obj.username
+        if kind == 'workflow_node':
+            return '%s / %s' % (obj.workflow_job_template.name, obj.identifier)
+        parent = getattr(obj, 'organization', None) or getattr(obj, 'inventory', None)
+        if kind in ('schedule',):
+            parent = obj.unified_job_template
+        name = getattr(obj, 'name', None) or str(obj.pk)
+        return '%s / %s' % (parent.name, name) if parent is not None else name
+
     def _save(self, ctx, kind, obj, created):
         if not ctx.dry_run:
             obj.save()
-        ctx.record(kind, created)
+        ctx.record(kind, created, self._label(kind, obj))
         return obj
 
     # ----- per-resource importers -----------------------------------------
@@ -786,6 +809,34 @@ class Command(BaseCommand):
                         'team %s -> %s' % (team.name, role_field))
 
     # ----- reporting -------------------------------------------------------
+
+    def _write_report_file(self, path, source_url, ctx):
+        from django.utils.timezone import now
+
+        from forail.main.utils import get_awx_version
+
+        report = {
+            'format': 'forail-import-report/1',
+            'generated_at': now().isoformat(),
+            'source': source_url,
+            'forail_version': get_awx_version(),
+            'dry_run': ctx.dry_run,
+            'options': {'grant_superusers': self.grant_superusers, 'trust_injectors': self.trust_injectors},
+            'objects': ctx.objects,
+            'role_assignments': ctx.role_grants,
+            'secret_fields_pending': ctx.secret_fields_pending,
+            'warnings': {kind: ctx.warnings_of(kind) for kind, _ in WARNING_KINDS if ctx.warnings_of(kind)},
+        }
+        try:
+            with open(path, 'w') as handle:
+                json.dump(report, handle, indent=2, sort_keys=True)
+                handle.write('\n')
+        except OSError as exc:
+            # The import itself has already committed (or rolled back); a
+            # report that cannot be written must not read as a failed import.
+            self.stderr.write(self.style.ERROR('Could not write the report to %s: %s' % (path, exc)))
+            return
+        self.stdout.write('Report written to %s' % path)
 
     def _report(self, ctx):
         mode = 'DRY RUN (no changes written)' if ctx.dry_run else 'Import complete'
