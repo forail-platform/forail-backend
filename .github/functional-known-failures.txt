@@ -1,0 +1,91 @@
+# Functional tests known to fail on develop, deselected in CI.
+#
+# This list may only shrink. Each line is a test that was already failing
+# when CI first started running the functional suite (2026-09-30); none of
+# them had ever run in CI before. Fix the test or the code, then delete the
+# line in the same commit.
+
+# [access-settings] The test patches forail.main.access.settings, but access became a package and settings is now imported in its submodules.
+forail/main/tests/functional/test_rbac_credential.py::test_credential_access_org_user[False]
+forail/main/tests/functional/test_rbac_credential.py::test_credential_access_org_user[True]
+forail/main/tests/functional/test_rbac_organization.py::test_org_resource_role[False]
+forail/main/tests/functional/test_rbac_organization.py::test_org_resource_role[True]
+forail/main/tests/functional/test_rbac_team.py::test_org_admin_view_all_teams[False]
+forail/main/tests/functional/test_rbac_team.py::test_org_admin_view_all_teams[True]
+forail/main/tests/functional/test_rbac_team.py::test_team_org_resource_role[False]
+forail/main/tests/functional/test_rbac_team.py::test_team_org_resource_role[True]
+forail/main/tests/functional/test_rbac_user.py::test_manage_org_auth_setting[org]
+forail/main/tests/functional/test_rbac_user.py::test_manage_org_auth_setting[org-off]
+forail/main/tests/functional/test_rbac_user.py::test_manage_org_auth_setting[superuser]
+forail/main/tests/functional/test_rbac_user.py::test_manage_org_auth_setting[superuser-off]
+forail/main/tests/functional/test_rbac_user.py::test_team_org_resource_role[False]
+forail/main/tests/functional/test_rbac_user.py::test_team_org_resource_role[True]
+
+# [external-auditor-fixtures] TestExternalAuditorRoleAllModels walks every model with an access class; the Forail models (drift, scanner, policy, EDA, tenancy, service catalog, webhooks) have no fixture.
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_can_read_method[DriftAlertRule]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_can_read_method[EventRule]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_can_read_method[OutboundWebhook]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_can_read_method[Policy]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_can_read_method[ScanFinding]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_can_read_method[Scanner]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_can_read_method[ScanResult]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_can_read_method[ServiceCatalogItem]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_can_read_method[TenantIsolationEvent]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_can_read_method[TenantQuotaEvent]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_can_read_method[TenantUsage]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_get_queryset[DriftAlertRule]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_get_queryset[EventRule]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_get_queryset[OutboundWebhook]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_get_queryset[Policy]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_get_queryset[ScanFinding]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_get_queryset[Scanner]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_get_queryset[ScanResult]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_get_queryset[ServiceCatalogItem]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_get_queryset[TenantIsolationEvent]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_get_queryset[TenantQuotaEvent]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_get_queryset[TenantUsage]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_detail_view[DriftAlertRule]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_detail_view[EventRule]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_detail_view[OutboundWebhook]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_detail_view[Policy]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_detail_view[ScanFinding]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_detail_view[Scanner]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_detail_view[ScanResult]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_detail_view[ServiceCatalogItem]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_detail_view[TenantIsolationEvent]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_detail_view[TenantQuotaEvent]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_detail_view[TenantUsage]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_global_list[DriftAlertRule]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_global_list[EventRule]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_global_list[OutboundWebhook]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_global_list[Policy]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_global_list[ScanFinding]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_global_list[Scanner]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_global_list[ScanResult]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_global_list[ServiceCatalogItem]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_global_list[TenantIsolationEvent]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_global_list[TenantQuotaEvent]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_global_list[TenantUsage]
+
+# [ee-rbac] Org-scoped execution environment permissions not visible to the grantee.
+forail/main/tests/functional/test_rbac_execution_environment.py::test_give_object_permission_to_ee
+forail/main/tests/functional/test_rbac_execution_environment.py::test_give_org_permission_to_ee[new]
+forail/main/tests/functional/test_rbac_execution_environment.py::test_give_org_permission_to_ee[old]
+
+# [dab-rbac] django-ansible-base rule changes the test does not reflect.
+forail/main/tests/functional/dab_rbac/test_dab_rbac_api.py::test_assign_custom_delete_role
+forail/main/tests/functional/dab_rbac/test_dab_rbac_api.py::test_team_member_role_not_assignable
+
+# [rename] Expectation rewritten by the forge -> forail rename: the AWX collection is still awx.awx.
+forail/main/tests/functional/models/test_inventory.py::TestInventorySourceInjectors::test_plugin_proper_names[controller-forail.awx.tower]
+
+# [websocket] Websocket relay/consumer auth tests.
+forail/main/tests/functional/test_routing.py::TestWebsocketEventConsumer::test_unauthorized_anonymous
+forail/main/tests/functional/test_routing.py::TestWebsocketRelay::test_authorized
+forail/main/tests/functional/test_routing.py::TestWebsocketRelay::test_not_authorized
+forail/main/tests/functional/test_routing.py::TestWebsocketRelay::test_wrong_secret
+
+# [misc] Individually broken; see the commit that removes each line.
+forail/main/tests/functional/models/test_activity_stream.py::test_modified_not_allowed_field
+forail/main/tests/functional/test_licenses.py::test_python_and_js_licenses
+forail/sso/tests/functional/test_saml_pipeline.py::TestSAMLUserFlags::test__check_flag[user_flags_settings2-expected2-False]
