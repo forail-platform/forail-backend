@@ -110,9 +110,25 @@ class ImportContext:
         d = self.created if created else self.updated
         d[kind] = d.get(kind, 0) + 1
 
-    def warn(self, msg):
-        self.warnings.append(msg)
+    def warn(self, msg, kind='skipped'):
+        """Record something the operator has to see; ``kind`` is a WARNING_KINDS key."""
+        self.warnings.append((kind, msg))
         logger.warning(msg)
+
+    def warnings_of(self, kind):
+        return [msg for k, msg in self.warnings if k == kind]
+
+
+# How the final report groups warnings, in the order an operator should read
+# them: what changed privileges first, then what they must fix by hand.
+WARNING_KINDS = [
+    ('granted', 'Privileges GRANTED from the source (--grant-superusers)'),
+    ('privilege', 'Privilege grants SKIPPED (pass --grant-superusers to honour them)'),
+    ('injectors', 'Credential-type injectors NOT applied (re-approve them, or use --trust-injectors)'),
+    ('secrets', 'Secrets and passwords to re-enter (AWX never exports them)'),
+    ('rbac', 'Role grants Forail rejected'),
+    ('skipped', 'Objects skipped'),
+]
 
 
 # Resources whose import order matters (dependencies first).
@@ -327,14 +343,14 @@ class Command(BaseCommand):
             if u.get('is_superuser'):
                 if self.grant_superusers:
                     if not obj.is_superuser:
-                        ctx.warn('GRANTING superuser to "%s" from source (--grant-superusers).' % u['username'])
+                        ctx.warn('GRANTING superuser to "%s" from source (--grant-superusers).' % u['username'], kind='granted')
                     obj.is_superuser = True
                 else:
                     ctx.warn('Skipped superuser grant for "%s" (source flagged it superuser; '
-                             'pass --grant-superusers to honour it).' % u['username'])
+                             'pass --grant-superusers to honour it).' % u['username'], kind='privilege')
             if created:
                 obj.set_unusable_password()
-                ctx.warn('User "%s" created without a password — set one (passwords are not exported by AWX).' % u['username'])
+                ctx.warn('User "%s" created without a password — set one (passwords are not exported by AWX).' % u['username'], kind='secrets')
             self._save(ctx, 'user', obj, created)
             ctx.maps['user'][u['id']] = obj
 
@@ -342,7 +358,7 @@ class Command(BaseCommand):
         for t in client.get_list('teams'):
             org = ctx.maps['organization'].get(t.get('organization'))
             if org is None:
-                ctx.warn('Skipping team "%s": its organization was not imported.' % t.get('name'))
+                ctx.warn('Skipping team "%s": its organization was not imported.' % t.get('name'), kind='skipped')
                 continue
             obj, created = Team.objects.get_or_create(name=t['name'], organization=org)
             obj.description = t.get('description', '') or ''
@@ -376,12 +392,12 @@ class Command(BaseCommand):
             elif not created:
                 if source_injectors and source_injectors != (obj.injectors or {}):
                     ctx.warn('Credential type "%s": the source injectors differ from the local ones; kept the local '
-                             'injectors (re-run with --trust-injectors to replace them).' % ct['name'])
+                             'injectors (re-run with --trust-injectors to replace them).' % ct['name'], kind='injectors')
             else:
                 obj.injectors = {}
                 if source_injectors:
                     ctx.warn('Credential type "%s": injectors NOT imported (re-approve manually, '
-                             'or re-run with --trust-injectors).' % ct['name'])
+                             'or re-run with --trust-injectors).' % ct['name'], kind='injectors')
             self._save(ctx, 'credential_type', obj, created)
             ctx.maps['credential_type'][ct['id']] = obj
 
@@ -389,7 +405,7 @@ class Command(BaseCommand):
         for c in client.get_list('credentials'):
             ctype = ctx.maps['credential_type'].get(c.get('credential_type'))
             if ctype is None:
-                ctx.warn('Skipping credential "%s": its credential type was not imported.' % c.get('name'))
+                ctx.warn('Skipping credential "%s": its credential type was not imported.' % c.get('name'), kind='skipped')
                 continue
             org = ctx.maps['organization'].get(c.get('organization'))
             obj, created = Credential.objects.get_or_create(
@@ -399,7 +415,7 @@ class Command(BaseCommand):
             obj.inputs = clean_inputs
             if n_secret:
                 ctx.secret_fields_pending += n_secret
-                ctx.warn('Credential "%s": %d secret field(s) must be re-entered (not exported by AWX).' % (c['name'], n_secret))
+                ctx.warn('Credential "%s": %d secret field(s) must be re-entered (not exported by AWX).' % (c['name'], n_secret), kind='secrets')
             self._save(ctx, 'credential', obj, created)
             ctx.maps['credential'][c['id']] = obj
 
@@ -424,7 +440,7 @@ class Command(BaseCommand):
         for i in client.get_list('inventories'):
             org = ctx.maps['organization'].get(i.get('organization'))
             if org is None:
-                ctx.warn('Skipping inventory "%s": its organization was not imported.' % i.get('name'))
+                ctx.warn('Skipping inventory "%s": its organization was not imported.' % i.get('name'), kind='skipped')
                 continue
             obj, created = Inventory.objects.get_or_create(name=i['name'], organization=org)
             obj.description = i.get('description', '') or ''
@@ -525,7 +541,7 @@ class Command(BaseCommand):
         for s in client.get_list('inventory_sources'):
             inv = ctx.maps['inventory'].get(s.get('inventory'))
             if inv is None:
-                ctx.warn('Skipping inventory source "%s": its inventory was not imported.' % s.get('name'))
+                ctx.warn('Skipping inventory source "%s": its inventory was not imported.' % s.get('name'), kind='skipped')
                 continue
             # `source` is a required (NOT NULL, no default) field, so it must be
             # set at creation time — get_or_create's initial INSERT would
@@ -608,7 +624,7 @@ class Command(BaseCommand):
         for nt in client.get_list('notification_templates'):
             org = ctx.maps['organization'].get(nt.get('organization'))
             if org is None:
-                ctx.warn('Skipping notification template "%s": its organization was not imported.' % nt.get('name'))
+                ctx.warn('Skipping notification template "%s": its organization was not imported.' % nt.get('name'), kind='skipped')
                 continue
             # The model's save() looks up CLASS_FOR_NOTIFICATION_TYPE[type] and
             # reads notification_configuration[<password field>] for the type, so
@@ -632,7 +648,7 @@ class Command(BaseCommand):
                 obj.messages = nt['messages']
             if n_secret:
                 ctx.secret_fields_pending += n_secret
-                ctx.warn('Notification template "%s": %d secret field(s) must be re-entered (not exported by AWX).' % (nt['name'], n_secret))
+                ctx.warn('Notification template "%s": %d secret field(s) must be re-entered (not exported by AWX).' % (nt['name'], n_secret), kind='secrets')
             self._save(ctx, 'notification_template', obj, created)
             ctx.maps['notification_template'][nt['id']] = obj
         # Wire each unified job template's started/success/error notification hooks.
@@ -657,10 +673,10 @@ class Command(BaseCommand):
         for sc in client.get_list('schedules'):
             ujt = self._unified_jt(ctx, sc.get('unified_job_template'))
             if ujt is None:
-                ctx.warn('Skipping schedule "%s": its job template was not imported.' % sc.get('name'))
+                ctx.warn('Skipping schedule "%s": its job template was not imported.' % sc.get('name'), kind='skipped')
                 continue
             if not sc.get('rrule'):
-                ctx.warn('Skipping schedule "%s": no rrule.' % sc.get('name'))
+                ctx.warn('Skipping schedule "%s": no rrule.' % sc.get('name'), kind='skipped')
                 continue
             obj, created = Schedule.objects.get_or_create(
                 unified_job_template=ujt, name=sc['name'],
@@ -704,7 +720,7 @@ class Command(BaseCommand):
                 action()
             ctx.role_grants += 1
         except Exception as exc:  # pylint: disable=broad-except
-            ctx.warn('Skipped role grant (%s): %s' % (desc, exc))
+            ctx.warn('Skipped role grant (%s): %s' % (desc, exc), kind='rbac')
 
     def _import_roles(self, client, ctx):
         """Recreate RBAC role assignments (which users/teams hold which roles).
@@ -733,13 +749,13 @@ class Command(BaseCommand):
                     if role_field in ('system_administrator', 'system_auditor'):
                         if not self.grant_superusers:
                             ctx.warn('Skipped %s grant for "%s" (pass --grant-superusers to honour it).'
-                                     % (role_field, user.username))
+                                     % (role_field, user.username), kind='privilege')
                             continue
                         if role_field == 'system_administrator':
-                            ctx.warn('GRANTING system_administrator (superuser) to "%s".' % user.username)
+                            ctx.warn('GRANTING system_administrator (superuser) to "%s".' % user.username, kind='granted')
                             user.is_superuser = True
                         else:
-                            ctx.warn('GRANTING system_auditor to "%s".' % user.username)
+                            ctx.warn('GRANTING system_auditor to "%s".' % user.username, kind='granted')
                             user.is_system_auditor = True
                     else:
                         continue
@@ -789,5 +805,16 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING(
                 'ACTION REQUIRED: %d secret credential field(s) were NOT migrated '
                 '(AWX does not export secrets). Re-enter them in Forail.' % ctx.secret_fields_pending))
-        if ctx.warnings:
-            self.stdout.write('  (%d warning(s) — see log for details)' % len(ctx.warnings))
+        # Every warning is printed, grouped. A count with "see log" hid exactly
+        # the lines an operator must act on -- which accounts were not made
+        # superuser, which credential types lost their injectors -- in a log
+        # that a one-off management command often does not keep.
+        for kind, title in WARNING_KINDS:
+            msgs = ctx.warnings_of(kind)
+            if not msgs:
+                continue
+            style = self.style.ERROR if kind == 'granted' else self.style.WARNING
+            self.stdout.write('')
+            self.stdout.write(style('%s (%d):' % (title, len(msgs))))
+            for msg in msgs:
+                self.stdout.write('  - %s' % msg)

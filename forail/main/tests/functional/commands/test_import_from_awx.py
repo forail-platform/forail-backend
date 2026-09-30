@@ -465,3 +465,30 @@ def test_unreadable_secret_file_is_a_clear_error(client_args, tmp_path, monkeypa
     monkeypatch.delenv('AWX_TOKEN', raising=False)
     with pytest.raises(CommandError, match='Could not read the token'):
         _run(token_file=str(tmp_path / 'missing'))
+
+
+@pytest.mark.django_db
+def test_skipped_grants_are_reported(fake_awx, system_admin_role, capsys):
+    from io import StringIO
+
+    out = StringIO()
+    call_command('import_from_awx', url='https://awx.example.com', token='t', stdout=out)
+    report = out.getvalue()
+    assert 'root' in report and 'alice' in report
+    assert '--grant-superusers' in report
+
+
+@pytest.mark.django_db
+def test_report_groups_what_the_operator_must_act_on(fake_awx, source_injectors):
+    from io import StringIO
+
+    out = StringIO()
+    call_command('import_from_awx', url='https://awx.example.com', token='t', stdout=out)
+    report = out.getvalue()
+    assert 'see log' not in report
+    skipped = report.index('Privilege grants SKIPPED')
+    injectors = report.index('Credential-type injectors NOT applied')
+    secrets = report.index('Secrets and passwords to re-enter')
+    assert skipped < injectors < secrets
+    assert 'Credential "cloud-cred": 1 secret field(s)' in report
+    assert 'Privileges GRANTED' not in report
