@@ -1,6 +1,7 @@
 import pytest
 
-from unittest import mock
+from django.test import override_settings
+
 
 from forail.main.access import CredentialAccess
 from forail.main.models.credential import Credential
@@ -34,8 +35,7 @@ def test_credential_access_self(rando):
 @pytest.mark.parametrize('ext_auth', [True, False])
 def test_credential_access_org_user(org_member, org_admin, ext_auth):
     access = CredentialAccess(org_admin)
-    with mock.patch('forail.main.access.settings') as settings_mock:
-        settings_mock.MANAGE_ORGANIZATION_AUTH = ext_auth
+    with override_settings(MANAGE_ORGANIZATION_AUTH=ext_auth):
         assert access.can_add({'user': org_member.pk})
 
 

@@ -5,22 +5,6 @@
 # them had ever run in CI before. Fix the test or the code, then delete the
 # line in the same commit.
 
-# [access-settings] The test patches forail.main.access.settings, but access became a package and settings is now imported in its submodules.
-forail/main/tests/functional/test_rbac_credential.py::test_credential_access_org_user[False]
-forail/main/tests/functional/test_rbac_credential.py::test_credential_access_org_user[True]
-forail/main/tests/functional/test_rbac_organization.py::test_org_resource_role[False]
-forail/main/tests/functional/test_rbac_organization.py::test_org_resource_role[True]
-forail/main/tests/functional/test_rbac_team.py::test_org_admin_view_all_teams[False]
-forail/main/tests/functional/test_rbac_team.py::test_org_admin_view_all_teams[True]
-forail/main/tests/functional/test_rbac_team.py::test_team_org_resource_role[False]
-forail/main/tests/functional/test_rbac_team.py::test_team_org_resource_role[True]
-forail/main/tests/functional/test_rbac_user.py::test_manage_org_auth_setting[org]
-forail/main/tests/functional/test_rbac_user.py::test_manage_org_auth_setting[org-off]
-forail/main/tests/functional/test_rbac_user.py::test_manage_org_auth_setting[superuser]
-forail/main/tests/functional/test_rbac_user.py::test_manage_org_auth_setting[superuser-off]
-forail/main/tests/functional/test_rbac_user.py::test_team_org_resource_role[False]
-forail/main/tests/functional/test_rbac_user.py::test_team_org_resource_role[True]
-
 # [external-auditor-fixtures] TestExternalAuditorRoleAllModels walks every model with an access class; the Forail models (drift, scanner, policy, EDA, tenancy, service catalog, webhooks) have no fixture.
 forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_can_read_method[DriftAlertRule]
 forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_can_read_method[EventRule]
