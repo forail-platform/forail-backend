@@ -67,7 +67,6 @@ forail/main/tests/functional/test_routing.py::TestWebsocketRelay::test_not_autho
 forail/main/tests/functional/test_routing.py::TestWebsocketRelay::test_wrong_secret
 
 # [misc] Individually broken; see the commit that removes each line.
-forail/main/tests/functional/models/test_activity_stream.py::test_modified_not_allowed_field
 forail/sso/tests/functional/test_saml_pipeline.py::TestSAMLUserFlags::test__check_flag[user_flags_settings2-expected2-False]
 
 # [licenses] licenses/ (third-party license texts the check compares against

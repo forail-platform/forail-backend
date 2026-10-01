@@ -469,6 +469,11 @@ def disable_computed_fields():
 
 def model_serializer_mapping():
     from forail.api import serializers
+    from forail.api.serializers.drift import DriftAlertRuleSerializer
+    from forail.api.serializers.eda import EventRuleSerializer, OutboundWebhookSerializer
+    from forail.api.serializers.policy import PolicySerializer
+    from forail.api.serializers.scanner import ScannerSerializer
+    from forail.api.serializers.service_catalog import ServiceCatalogItemSerializer
     from forail.main import models
 
     from forail.conf.models import Setting
@@ -503,6 +508,16 @@ def model_serializer_mapping():
         models.WorkflowJob: serializers.WorkflowJobSerializer,
         models.OAuth2AccessToken: serializers.OAuth2TokenSerializer,
         models.OAuth2Application: serializers.OAuth2ApplicationSerializer,
+        models.EventRule: EventRuleSerializer,
+        models.OutboundWebhook: OutboundWebhookSerializer,
+        models.DriftAlertRule: DriftAlertRuleSerializer,
+        models.ServiceCatalogItem: ServiceCatalogItemSerializer,
+        models.Policy: PolicySerializer,
+        models.Scanner: ScannerSerializer,
+        # ServiceRequest and WebAuthnCredential deliberately have no entry: their
+        # API serializers mark status / approved_by read-only, and an approval
+        # is exactly what the activity stream must record. They fall back to the
+        # model's fields, minus ACTIVITY_STREAM_FIELD_EXCLUSIONS.
     }
 
 

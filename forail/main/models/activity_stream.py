@@ -101,6 +101,18 @@ class ActivityStream(models.Model):
     instance_group = models.ManyToManyField("InstanceGroup", blank=True)
     o_auth2_application = models.ManyToManyField("OAuth2Application", blank=True)
     o_auth2_access_token = models.ManyToManyField("OAuth2AccessToken", blank=True)
+    # Forail models. activity_stream_create/update look the relation up by
+    # camelcase_to_underscore(model name), so every model connected to the
+    # activity_stream_registrar needs a field here under exactly that name;
+    # without one, saving the model raises AttributeError.
+    event_rule = models.ManyToManyField("EventRule", blank=True)
+    outbound_webhook = models.ManyToManyField("OutboundWebhook", blank=True)
+    drift_alert_rule = models.ManyToManyField("DriftAlertRule", blank=True)
+    service_catalog_item = models.ManyToManyField("ServiceCatalogItem", blank=True)
+    service_request = models.ManyToManyField("ServiceRequest", blank=True)
+    web_authn_credential = models.ManyToManyField("WebAuthnCredential", blank=True)
+    policy = models.ManyToManyField("Policy", blank=True)
+    scanner = models.ManyToManyField("Scanner", blank=True)
 
     setting = models.JSONField(default=dict, blank=True)
 
