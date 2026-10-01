@@ -60,9 +60,6 @@ forail/main/tests/functional/test_rbac_execution_environment.py::test_give_org_p
 forail/main/tests/functional/dab_rbac/test_dab_rbac_api.py::test_assign_custom_delete_role
 forail/main/tests/functional/dab_rbac/test_dab_rbac_api.py::test_team_member_role_not_assignable
 
-# [rename] Expectation rewritten by the forge -> forail rename: the AWX collection is still awx.awx.
-forail/main/tests/functional/models/test_inventory.py::TestInventorySourceInjectors::test_plugin_proper_names[controller-forail.awx.tower]
-
 # [websocket] Websocket relay/consumer auth tests.
 forail/main/tests/functional/test_routing.py::TestWebsocketEventConsumer::test_unauthorized_anonymous
 forail/main/tests/functional/test_routing.py::TestWebsocketRelay::test_authorized
@@ -71,5 +68,9 @@ forail/main/tests/functional/test_routing.py::TestWebsocketRelay::test_wrong_sec
 
 # [misc] Individually broken; see the commit that removes each line.
 forail/main/tests/functional/models/test_activity_stream.py::test_modified_not_allowed_field
-forail/main/tests/functional/test_licenses.py::test_python_and_js_licenses
 forail/sso/tests/functional/test_saml_pipeline.py::TestSAMLUserFlags::test__check_flag[user_flags_settings2-expected2-False]
+
+# [licenses] licenses/ (third-party license texts the check compares against
+# requirements/) was never carried over when the backend was split out of the
+# monorepo. Restoring it is a licence-compliance task, not a test fix.
+forail/main/tests/functional/test_licenses.py::test_python_and_js_licenses
