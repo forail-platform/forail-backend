@@ -31,7 +31,6 @@ logger = logging.getLogger('forail.api.views.eda')
 
 class EventRuleList(ListCreateAPIView):
     model = EventRule
-    permission_classes = [IsAuthenticated]
     ordering = ('name',)
 
     def get_serializer_class(self):
@@ -65,7 +64,6 @@ class EventRuleList(ListCreateAPIView):
 class EventRuleDetail(RetrieveUpdateDestroyAPIView):
     model = EventRule
     serializer_class = EventRuleSerializer
-    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         qs = EventRule.objects.all()
@@ -86,11 +84,11 @@ class EventRuleWebhookKey(APIView):
             obj = EventRule.objects.get(pk=pk)
         except EventRule.DoesNotExist:
             raise PermissionDenied
-        user = self.request.user
-        if not (user.is_superuser or getattr(user, 'is_system_auditor', False)):
-            user_org_ids = user.organizations.values_list('id', flat=True)
-            if obj.organization_id not in user_org_ids:
-                raise PermissionDenied
+        # The key authenticates inbound webhooks: reading it is as good as
+        # being able to fire the rule. Admins only -- not every member, and
+        # not a system auditor.
+        if not self.request.user.can_access(EventRule, 'change', obj, None):
+            raise PermissionDenied
         return obj
 
     def get(self, request, *args, **kwargs):
@@ -129,6 +127,8 @@ class EventRuleTest(APIView):
             rule = EventRule.objects.get(pk=pk)
         except EventRule.DoesNotExist:
             raise PermissionDenied
+        if not request.user.can_access(EventRule, 'read', rule):
+            raise PermissionDenied
 
         payload = request.data.get('payload', {})
         headers = request.data.get('headers', {})
@@ -156,12 +156,8 @@ class EventRuleToggle(APIView):
             rule = EventRule.objects.get(pk=pk)
         except EventRule.DoesNotExist:
             raise PermissionDenied
-
-        user = self.request.user
-        if not (user.is_superuser or getattr(user, 'is_system_auditor', False)):
-            user_org_ids = user.organizations.values_list('id', flat=True)
-            if rule.organization_id not in user_org_ids:
-                raise PermissionDenied
+        if not request.user.can_access(EventRule, 'change', rule, {'enabled': action == 'enable'}):
+            raise PermissionDenied
 
         rule.enabled = (action == 'enable')
         rule.save(update_fields=['enabled'])
@@ -225,7 +221,6 @@ class EventLogDetail(RetrieveAPIView):
 class OutboundWebhookList(ListCreateAPIView):
     model = OutboundWebhook
     serializer_class = OutboundWebhookSerializer
-    permission_classes = [IsAuthenticated]
     ordering = ('name',)
 
     def get_queryset(self):
@@ -246,7 +241,6 @@ class OutboundWebhookList(ListCreateAPIView):
 class OutboundWebhookDetail(RetrieveUpdateDestroyAPIView):
     model = OutboundWebhook
     serializer_class = OutboundWebhookSerializer
-    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         qs = OutboundWebhook.objects.all()
@@ -266,6 +260,10 @@ class OutboundWebhookTest(APIView):
         try:
             webhook = OutboundWebhook.objects.get(pk=pk)
         except OutboundWebhook.DoesNotExist:
+            raise PermissionDenied
+        # Sends a request from the platform to the webhook's URL; checked by
+        # pk alone, any user could make the platform call any configured URL.
+        if not request.user.can_access(OutboundWebhook, 'change', webhook, None):
             raise PermissionDenied
 
         from forail.main.tasks.eda import send_outbound_webhook

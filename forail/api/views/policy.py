@@ -6,6 +6,7 @@ from django.conf import settings as django_settings
 
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
 from forail.api.generics import (
@@ -37,7 +38,6 @@ def _org_filtered(qs, user, org_field='organization_id'):
 
 class PolicyList(ListCreateAPIView):
     model = Policy
-    permission_classes = [IsAuthenticated]
     ordering = ('name',)
 
     def get_serializer_class(self):
@@ -67,7 +67,6 @@ class PolicyList(ListCreateAPIView):
 class PolicyDetail(RetrieveUpdateDestroyAPIView):
     model = Policy
     serializer_class = PolicySerializer
-    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         return _org_filtered(Policy.objects.all(), self.request.user)
@@ -82,6 +81,8 @@ class PolicyToggle(APIView):
             policy = _org_filtered(Policy.objects.all(), request.user).get(pk=self.kwargs['pk'])
         except Policy.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
+        if not request.user.can_access(Policy, 'change', policy, {'enabled': action == 'enable'}):
+            raise PermissionDenied
         policy.enabled = (action == 'enable')
         policy.save(update_fields=['enabled', 'modified'])
         return Response({'enabled': policy.enabled})

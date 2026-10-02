@@ -11,6 +11,7 @@ from django.utils.timezone import now
 
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
 from forail.api.generics import ListCreateAPIView, RetrieveUpdateDestroyAPIView, ListAPIView, RetrieveAPIView, APIView
@@ -150,7 +151,6 @@ class DriftDetectionAcknowledge(APIView):
 
 class DriftAlertRuleList(ListCreateAPIView):
     model = DriftAlertRule
-    permission_classes = [IsAuthenticated]
     ordering = ('name',)
 
     def get_serializer_class(self):
@@ -179,7 +179,6 @@ class DriftAlertRuleList(ListCreateAPIView):
 class DriftAlertRuleDetail(RetrieveUpdateDestroyAPIView):
     model = DriftAlertRule
     serializer_class = DriftAlertRuleSerializer
-    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         return _org_filtered_qs(DriftAlertRule.objects.all(), self.request.user)
@@ -198,6 +197,8 @@ class DriftAlertRuleToggle(APIView):
             rule = qs.get(pk=pk)
         except DriftAlertRule.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
+        if not request.user.can_access(DriftAlertRule, 'change', rule, {'enabled': action == 'enable'}):
+            raise PermissionDenied
 
         rule.enabled = (action == 'enable')
         rule.save(update_fields=['enabled'])

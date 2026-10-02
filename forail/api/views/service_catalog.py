@@ -40,7 +40,6 @@ def _org_filtered_qs(qs, user, org_field='organization_id'):
 
 class ServiceCatalogItemList(ListCreateAPIView):
     model = ServiceCatalogItem
-    permission_classes = [IsAuthenticated]
     ordering = ('category', 'name')
 
     def get_serializer_class(self):
@@ -70,7 +69,6 @@ class ServiceCatalogItemList(ListCreateAPIView):
 class ServiceCatalogItemDetail(RetrieveUpdateDestroyAPIView):
     model = ServiceCatalogItem
     serializer_class = ServiceCatalogItemSerializer
-    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         return _org_filtered_qs(ServiceCatalogItem.objects.all(), self.request.user)
