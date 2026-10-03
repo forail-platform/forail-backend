@@ -46,6 +46,13 @@ CELERYBEAT_SCHEDULE = {
         'schedule': timedelta(seconds=300),
         'options': {'expires': 280},
     },
+    'drift_cleanup_snapshots': {
+        # Fact snapshots are full ansible_facts per host per change; without
+        # this they grow without bound. Keeps 90 days, and always the last two
+        # per host so drift can still be computed.
+        'task': 'forail.main.tasks.drift.cleanup_old_snapshots',
+        'schedule': timedelta(hours=6),
+    },
     'tenancy_ensure_queues': {
         'task': 'forail.main.tasks.tenancy.ensure_all_tenant_queues',
         'schedule': timedelta(seconds=600),

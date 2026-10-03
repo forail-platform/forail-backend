@@ -11,7 +11,8 @@ import logging
 import hmac as hmac_mod
 from hashlib import sha256
 
-from celery import shared_task
+from forail.main.dispatch import get_task_queuename
+from forail.main.dispatch.publish import task
 from django.utils.encoding import force_bytes
 from django.utils.timezone import now
 from jinja2 import sandbox, ChainableUndefined
@@ -19,7 +20,7 @@ from jinja2 import sandbox, ChainableUndefined
 logger = logging.getLogger('forail.main.tasks.eda')
 
 
-@shared_task(name='forail.main.tasks.eda.evaluate_event_rule')
+@task(queue=get_task_queuename)
 def evaluate_event_rule(event_log_id):
     """
     Evaluate an EventRule's conditions against a received webhook payload.
@@ -291,7 +292,7 @@ def _log_audit_event(rule, event_log, actions_triggered):
         logger.exception("Failed to create audit event for EventRule %s", rule.pk)
 
 
-@shared_task(name='forail.main.tasks.eda.send_outbound_webhook')
+@task(queue=get_task_queuename)
 def send_outbound_webhook(outbound_webhook_id, job_data):
     """
     Send an outbound webhook notification for a job status change.

@@ -11,7 +11,8 @@ import logging
 from datetime import timedelta
 from fnmatch import fnmatch
 
-from celery import shared_task
+from forail.main.dispatch import get_task_queuename
+from forail.main.dispatch.publish import task
 from django.utils.timezone import now
 
 logger = logging.getLogger('forail.main.tasks.drift')
@@ -198,7 +199,7 @@ def compute_drift(old_facts, new_facts):
 # Celery Tasks
 # ---------------------------------------------------------------------------
 
-@shared_task(name='forail.main.tasks.drift.capture_fact_snapshot')
+@task(queue=get_task_queuename)
 def capture_fact_snapshot(job_id):
     """
     Capture fact snapshots for all hosts affected by a job.
@@ -257,7 +258,7 @@ def capture_fact_snapshot(job_id):
     )
 
 
-@shared_task(name='forail.main.tasks.drift.detect_drift')
+@task(queue=get_task_queuename)
 def detect_drift(snapshot_id):
     """
     Compare a new snapshot with the previous one for the same host.
@@ -314,7 +315,7 @@ def detect_drift(snapshot_id):
     evaluate_drift_alerts.delay(snapshot.host_id)
 
 
-@shared_task(name='forail.main.tasks.drift.evaluate_drift_alerts')
+@task(queue=get_task_queuename)
 def evaluate_drift_alerts(host_id):
     """
     Evaluate all enabled DriftAlertRules against recent drift for a host.
@@ -411,7 +412,7 @@ def evaluate_drift_alerts(host_id):
         )
 
 
-@shared_task(name='forail.main.tasks.drift.cleanup_old_snapshots')
+@task(queue=get_task_queuename)
 def cleanup_old_snapshots(retention_days=90, min_keep=2):
     """
     Periodic cleanup: delete snapshots older than retention period.
