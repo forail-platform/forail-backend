@@ -356,14 +356,22 @@ def dispatch_outbound_webhooks(job, event_type):
         job: UnifiedJob instance
         event_type: String like 'job.succeeded', 'job.failed', etc.
     """
+    from django.db.models import Q
+
     from forail.main.models.eda import OutboundWebhook
 
-    webhooks = OutboundWebhook.objects.filter(
-        enabled=True,
-        events__contains=[event_type],
-    )
+    # A webhook belongs to an organization and sees that organization's jobs
+    # only; one with no organization (superuser-made) sees every job.
+    # Unscoped, every tenant's webhook would receive every other tenant's
+    # job names and hosts.
+    #
+    # events is a JSON list; __contains on a JSON list is not portable
+    # (SQLite has no JSON containment), so match the event in Python.
+    org_id = getattr(job, 'organization_id', None)
+    candidates = OutboundWebhook.objects.filter(enabled=True).filter(Q(organization_id=org_id) | Q(organization__isnull=True))
+    webhooks = [w for w in candidates if event_type in (w.events or [])]
 
-    if not webhooks.exists():
+    if not webhooks:
         return
 
     job_data = {
@@ -382,5 +390,32 @@ def dispatch_outbound_webhooks(job, event_type):
         },
     }
 
+    from django.db import connection
+
     for webhook in webhooks:
-        send_outbound_webhook.delay(webhook.pk, job_data)
+        # After commit, so the receiver never hears about a status the
+        # database then rolls back.
+        connection.on_commit(lambda pk=webhook.pk: send_outbound_webhook.delay(pk, job_data))
+
+
+# send_notification_templates() status -> outbound webhook event suffix
+_STATUS_TO_EVENT = {'running': 'started', 'succeeded': 'succeeded', 'failed': 'failed'}
+
+
+def outbound_event_type(job, status):
+    """The OutboundWebhook event for a notification status of ``job``, or None."""
+    from forail.main.models import Job, WorkflowJob
+
+    if isinstance(job, WorkflowJob):
+        prefix = 'workflow'
+    elif isinstance(job, Job):
+        prefix = 'job'
+    else:
+        return None
+    suffix = _STATUS_TO_EVENT.get(status)
+    if suffix == 'failed' and getattr(job, 'status', None) == 'canceled':
+        suffix = 'canceled'
+    event = '%s.%s' % (prefix, suffix) if suffix else None
+    from forail.main.models.eda import OutboundWebhook
+
+    return event if event in dict(OutboundWebhook.EVENT_CHOICES) else None
