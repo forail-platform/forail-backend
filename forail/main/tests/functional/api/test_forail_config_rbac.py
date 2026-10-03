@@ -139,3 +139,18 @@ def test_webhook_key_is_for_admins_only(post, get, organization, admin, org_admi
     post(url, {}, org_member, expect=403)
     assert get(url, user=org_admin, expect=200).data['webhook_key']
 
+
+
+def test_dry_run_and_test_send_are_scoped(post, organization, admin, org_admin, outsider, org_jt, mocker):
+    from forail.main.tasks import eda as eda_tasks
+
+    send = mocker.patch.object(eda_tasks.send_outbound_webhook, 'delay')
+    rule = _create(post, 'event_rules', CONFIG[0][2](organization, org_jt), admin, 201)
+    hook = _create(post, 'outbound_webhooks', CONFIG[1][2](organization, org_jt), admin, 201)
+
+    post('/api/v2/event_rules/%s/test/' % rule, {'payload': {}}, outsider, expect=403)
+    post('/api/v2/outbound_webhooks/%s/test/' % hook, {}, outsider, expect=403)
+    assert not send.called
+
+    post('/api/v2/outbound_webhooks/%s/test/' % hook, {}, org_admin, expect=200)
+    assert send.called
