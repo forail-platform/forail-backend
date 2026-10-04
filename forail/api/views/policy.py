@@ -46,8 +46,7 @@ class PolicyList(ListCreateAPIView):
         return PolicySerializer
 
     def get_queryset(self):
-        qs = Policy.objects.all()
-        qs = _org_filtered(qs, self.request.user)
+        qs = self.request.user.get_queryset(Policy)
         params = self.request.query_params
         if params.get('enabled') is not None:
             v = params['enabled'].lower()
@@ -66,11 +65,9 @@ class PolicyList(ListCreateAPIView):
 
 class PolicyDetail(RetrieveUpdateDestroyAPIView):
     model = Policy
+    # No get_queryset: the full set, so an object outside the user's
+    # organizations is a 403 from the access check, as in the AWX views.
     serializer_class = PolicySerializer
-
-    def get_queryset(self):
-        return _org_filtered(Policy.objects.all(), self.request.user)
-
 
 class PolicyToggle(APIView):
     permission_classes = [IsAuthenticated]

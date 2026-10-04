@@ -159,8 +159,7 @@ class DriftAlertRuleList(ListCreateAPIView):
         return DriftAlertRuleSerializer
 
     def get_queryset(self):
-        qs = DriftAlertRule.objects.all()
-        qs = _org_filtered_qs(qs, self.request.user)
+        qs = self.request.user.get_queryset(DriftAlertRule)
 
         params = self.request.query_params
         if params.get('organization'):
@@ -178,11 +177,9 @@ class DriftAlertRuleList(ListCreateAPIView):
 
 class DriftAlertRuleDetail(RetrieveUpdateDestroyAPIView):
     model = DriftAlertRule
+    # No get_queryset: the full set, so an object outside the user's
+    # organizations is a 403 from the access check, as in the AWX views.
     serializer_class = DriftAlertRuleSerializer
-
-    def get_queryset(self):
-        return _org_filtered_qs(DriftAlertRule.objects.all(), self.request.user)
-
 
 class DriftAlertRuleToggle(APIView):
     """Enable or disable a DriftAlertRule."""

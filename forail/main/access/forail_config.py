@@ -16,6 +16,7 @@ that the user could run it themselves, so a rule cannot launch what its
 author may not.
 """
 
+from django.conf import settings
 from django.db.models import Q
 
 from forail.main.access.base import BaseAccess, check_superuser
@@ -37,7 +38,12 @@ class OrganizationConfigAccess(BaseAccess):
         # The visibility the views always had: the user's organizations, plus
         # objects with no organization, which only a superuser can create.
         orgs = Organization.accessible_pk_qs(self.user, 'read_role')
-        return self.model.objects.filter(Q(organization__in=orgs) | Q(organization__isnull=True))
+        visible = Q(organization__in=orgs) | Q(organization__isnull=True)
+        if settings.ANSIBLE_BASE_ROLE_SYSTEM_ACTIVATED:
+            # Plus whatever the DAB role system grants directly -- a global
+            # view role such as a custom platform auditor, or a creator role.
+            visible |= Q(pk__in=self.model.access_ids_qs(self.user, 'view'))
+        return self.model.objects.filter(visible)
 
     def _is_org_admin(self, organization):
         return organization is not None and self.user in organization.admin_role

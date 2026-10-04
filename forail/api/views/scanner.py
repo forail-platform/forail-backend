@@ -43,8 +43,7 @@ class ScannerList(ListCreateAPIView):
         return ScannerSerializer
 
     def get_queryset(self):
-        qs = Scanner.objects.all()
-        qs = _org_filtered(qs, self.request.user)
+        qs = self.request.user.get_queryset(Scanner)
         params = self.request.query_params
         if params.get('enabled') is not None:
             v = params['enabled'].lower()
@@ -65,11 +64,9 @@ class ScannerList(ListCreateAPIView):
 
 class ScannerDetail(RetrieveUpdateDestroyAPIView):
     model = Scanner
+    # No get_queryset: the full set, so an object outside the user's
+    # organizations is a 403 from the access check, as in the AWX views.
     serializer_class = ScannerSerializer
-
-    def get_queryset(self):
-        return _org_filtered(Scanner.objects.all(), self.request.user)
-
 
 class ScannerToggle(APIView):
     permission_classes = [IsAuthenticated]

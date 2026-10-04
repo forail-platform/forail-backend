@@ -39,11 +39,7 @@ class EventRuleList(ListCreateAPIView):
         return EventRuleSerializer
 
     def get_queryset(self):
-        qs = EventRule.objects.all()
-        user = self.request.user
-        if not (user.is_superuser or getattr(user, 'is_system_auditor', False)):
-            user_org_ids = user.organizations.values_list('id', flat=True)
-            qs = qs.filter(organization_id__in=user_org_ids)
+        qs = self.request.user.get_queryset(EventRule)
 
         params = self.request.query_params
         if params.get('organization'):
@@ -63,16 +59,9 @@ class EventRuleList(ListCreateAPIView):
 
 class EventRuleDetail(RetrieveUpdateDestroyAPIView):
     model = EventRule
+    # No get_queryset: the full set, so an object outside the user's
+    # organizations is a 403 from the access check, as in the AWX views.
     serializer_class = EventRuleSerializer
-
-    def get_queryset(self):
-        qs = EventRule.objects.all()
-        user = self.request.user
-        if not (user.is_superuser or getattr(user, 'is_system_auditor', False)):
-            user_org_ids = user.organizations.values_list('id', flat=True)
-            qs = qs.filter(organization_id__in=user_org_ids)
-        return qs
-
 
 class EventRuleWebhookKey(APIView):
     """Get or rotate the webhook key for an EventRule."""
@@ -224,11 +213,7 @@ class OutboundWebhookList(ListCreateAPIView):
     ordering = ('name',)
 
     def get_queryset(self):
-        qs = OutboundWebhook.objects.all()
-        user = self.request.user
-        if not (user.is_superuser or getattr(user, 'is_system_auditor', False)):
-            user_org_ids = user.organizations.values_list('id', flat=True)
-            qs = qs.filter(organization_id__in=user_org_ids)
+        qs = self.request.user.get_queryset(OutboundWebhook)
 
         params = self.request.query_params
         if params.get('organization'):
@@ -240,16 +225,9 @@ class OutboundWebhookList(ListCreateAPIView):
 
 class OutboundWebhookDetail(RetrieveUpdateDestroyAPIView):
     model = OutboundWebhook
+    # No get_queryset: the full set, so an object outside the user's
+    # organizations is a 403 from the access check, as in the AWX views.
     serializer_class = OutboundWebhookSerializer
-
-    def get_queryset(self):
-        qs = OutboundWebhook.objects.all()
-        user = self.request.user
-        if not (user.is_superuser or getattr(user, 'is_system_auditor', False)):
-            user_org_ids = user.organizations.values_list('id', flat=True)
-            qs = qs.filter(organization_id__in=user_org_ids)
-        return qs
-
 
 class OutboundWebhookTest(APIView):
     """Send a test payload to the outbound webhook URL."""

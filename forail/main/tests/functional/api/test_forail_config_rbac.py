@@ -99,8 +99,9 @@ def test_member_and_auditor_read_but_cannot_change(endpoint, model, payload, pos
 def test_other_organizations_see_nothing(endpoint, model, payload, post, get, patch, organization, admin, outsider, org_jt):
     pk = _create(post, endpoint, payload(organization, org_jt), admin, 201)
     url = '/api/v2/%s/%s/' % (endpoint, pk)
-    get(url, user=outsider, expect=404)
-    patch(url, {'description': 'nope'}, outsider, expect=404)
+    # 403, not 404, as everywhere else in the AWX API.
+    get(url, user=outsider, expect=403)
+    patch(url, {'description': 'nope'}, outsider, expect=403)
     listed = get('/api/v2/%s/' % endpoint, user=outsider, expect=200).data['results']
     assert pk not in [o['id'] for o in listed]
 
