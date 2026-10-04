@@ -6,6 +6,9 @@ webhooks from every organization, so once wired, each tenant would have
 received every other tenant's job events.
 """
 
+import json
+from decimal import Decimal
+
 import pytest
 
 from forail.main.models import Job, Organization, WorkflowJob
@@ -37,11 +40,13 @@ def test_job_events_reach_only_their_organization(organization, sent, django_cap
     _hook(organization, 'only-failures', ['job.failed'])
     global_hook = _hook(None, 'global', ['job.succeeded'])
 
-    job = Job.objects.create(name='deploy', organization=organization, status='successful')
+    job = Job.objects.create(name='deploy', organization=organization, status='successful', elapsed=Decimal('12.345'))
     _notify(job, 'succeeded', django_capture_on_commit_callbacks)
 
     assert sorted(pk for pk, _ in sent) == sorted([mine.pk, global_hook.pk])
     payload = sent[0][1]
+    # What the dispatcher does with task arguments: plain json.dumps, no default=.
+    json.dumps(payload)
     assert payload['event_type'] == 'job.succeeded'
     assert payload['job']['id'] == job.id
 

@@ -384,7 +384,10 @@ def dispatch_outbound_webhooks(job, event_type):
             'type': job.__class__.__name__,
             'started': str(job.started) if hasattr(job, 'started') and job.started else None,
             'finished': str(job.finished) if hasattr(job, 'finished') and job.finished else None,
-            'elapsed': getattr(job, 'elapsed', None),
+            # elapsed is a Decimal. The dispatcher publishes task arguments with
+            # json.dumps over pg_notify -- unlike Celery, it does not pickle --
+            # so everything here has to be plain JSON.
+            'elapsed': float(job.elapsed) if getattr(job, 'elapsed', None) is not None else None,
             'launch_type': getattr(job, 'launch_type', ''),
             'execution_node': getattr(job, 'execution_node', ''),
         },
