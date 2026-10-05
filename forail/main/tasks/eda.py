@@ -301,7 +301,10 @@ def send_outbound_webhook(outbound_webhook_id, job_data):
         outbound_webhook_id: ID of the OutboundWebhook configuration
         job_data: Dict with job status information to send
     """
-    import httpx
+    # requests, not httpx: httpx is not a dependency of Forail and is not in
+    # the image, so every send failed with ModuleNotFoundError.
+    import requests
+
     from forail.main.models.eda import OutboundWebhook
 
     try:
@@ -327,9 +330,8 @@ def send_outbound_webhook(outbound_webhook_id, job_data):
         headers['X-Forail-Signature'] = f'sha256={mac.hexdigest()}'
 
     try:
-        with httpx.Client(verify=webhook.ssl_verify, timeout=30.0) as client:
-            response = client.post(webhook.url, content=payload_bytes, headers=headers)
-            response.raise_for_status()
+        response = requests.post(webhook.url, data=payload_bytes, headers=headers, verify=webhook.ssl_verify, timeout=30)
+        response.raise_for_status()
 
         webhook.last_status = 'success'
         webhook.last_sent_at = now()
@@ -379,7 +381,7 @@ def dispatch_outbound_webhooks(job, event_type):
         'timestamp': now().isoformat(),
         'job': {
             'id': job.pk,
-            'name': str(job),
+            'name': job.name,
             'status': job.status,
             'type': job.__class__.__name__,
             'started': str(job.started) if hasattr(job, 'started') and job.started else None,
