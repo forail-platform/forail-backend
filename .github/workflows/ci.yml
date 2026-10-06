@@ -46,9 +46,9 @@ jobs:
           done
 
   functional:
-    # The Django functional suite (~2,200 tests) against this commit's code,
-    # with dependencies borrowed from the last published image -- see the
-    # script for why. Until 2026-09-30 these tests ran nowhere but on tags,
+    # The Django functional suite (~2,300 tests) against this commit's code,
+    # with dependencies borrowed from the last published image plus any pin in
+    # requirements.txt the image lacks -- see the script for why. Until 2026-09-30 these tests ran nowhere but on tags,
     # and only eight files of them; 71 had been failing unnoticed. Those are
     # listed in .github/functional-known-failures.txt, which may only shrink.
     runs-on: ubuntu-latest

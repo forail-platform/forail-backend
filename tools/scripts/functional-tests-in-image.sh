@@ -37,11 +37,32 @@ done < "$KNOWN"
 # which are not in the runtime image and not worth pulling in for them.
 exec docker run --rm --user root \
   -v "$ROOT/forail:/tmp/src/forail:ro" \
+  -v "$ROOT/requirements/requirements.txt:/tmp/src/requirements.txt:ro" \
   -w /tmp --entrypoint bash "$IMAGE" -c '
     set -euo pipefail
     SP=$(ls -d /var/lib/awx/venv/awx/lib/python3.*/site-packages)
     rm -rf "$SP/forail"
     cp -r /tmp/src/forail "$SP/forail"
+    # The image predates this checkout: install the requirements.txt pins for
+    # packages it does not have at all, so a new dependency is tested with the
+    # dependency. Packages already present are left alone (some, like
+    # python-ldap and xmlsec, cannot be rebuilt here).
+    VENV_PY=$(dirname "$SP")/../../bin/python3
+    missing=$("$VENV_PY" -c "
+import importlib.metadata as md, re
+for line in open(\"/tmp/src/requirements.txt\"):
+    m = re.match(r\"^([A-Za-z0-9_.-]+)==(\S+)\", line)
+    if not m:
+        continue
+    try:
+        md.version(m.group(1))
+    except md.PackageNotFoundError:
+        print(m.group(1) + \"==\" + m.group(2))
+")
+    if [ -n "$missing" ]; then
+        echo "Installing pins missing from the image: $missing"
+        "$VENV_PY" -m pip install -q --no-deps $missing >/dev/null
+    fi
     # pytest-asyncio is deliberately absent: it needs a newer
     # typing_extensions than the application pins, and nothing here is async.
     pip install -q --break-system-packages \
