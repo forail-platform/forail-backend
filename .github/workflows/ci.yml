@@ -45,10 +45,25 @@ jobs:
             echo "::endgroup::"
           done
 
+  functional:
+    # The Django functional suite (~2,300 tests) against this commit's code,
+    # with dependencies borrowed from the last published image plus any pin in
+    # requirements.txt the image lacks -- see the script for why. Until 2026-09-30 these tests ran nowhere but on tags,
+    # and only eight files of them; 71 had been failing unnoticed. Those are
+    # listed in .github/functional-known-failures.txt, which may only shrink.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pull the dependency image
+        run: docker pull -q ghcr.io/forail-platform/forail-backend:2026.07.2-rc1
+      - name: Run the functional tests
+        run: tools/scripts/functional-tests-in-image.sh
+
   publish:
     # Build and push the image to ghcr.io only on version tags (v*),
     # after lint and tests pass. Tags the image with the version (v stripped).
-    needs: [lint, test]
+    needs: [lint, test, functional]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:

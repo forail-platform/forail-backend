@@ -1,5 +1,6 @@
 import pytest
-from unittest import mock
+
+from django.test import override_settings
 
 from forail.main.access import TeamAccess
 from forail.main.models import Project, Organization, Team
@@ -27,8 +28,7 @@ def test_team_attach_unattach(team, user):
 @pytest.mark.django_db
 @pytest.mark.parametrize('ext_auth', [True, False])
 def test_team_org_resource_role(ext_auth, team, user, rando):
-    with mock.patch('forail.main.access.settings') as settings_mock:
-        settings_mock.MANAGE_ORGANIZATION_AUTH = ext_auth
+    with override_settings(MANAGE_ORGANIZATION_AUTH=ext_auth):
         u = user('member', False)
         team.organization.admin_role.members.add(u)
         access = TeamAccess(u)
@@ -163,8 +163,7 @@ def test_org_admin_view_all_teams(org_admin, enabled):
     access = TeamAccess(org_admin)
     other_org = Organization.objects.create(name='other-org')
     other_team = Team.objects.create(name='other-team', organization=other_org)
-    with mock.patch('forail.main.access.settings') as settings_mock:
-        settings_mock.ORG_ADMINS_CAN_SEE_ALL_USERS = enabled
+    with override_settings(ORG_ADMINS_CAN_SEE_ALL_USERS=enabled):
         assert access.can_read(other_team) is enabled
 
 

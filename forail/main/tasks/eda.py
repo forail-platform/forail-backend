@@ -11,7 +11,8 @@ import logging
 import hmac as hmac_mod
 from hashlib import sha256
 
-from celery import shared_task
+from forail.main.dispatch import get_task_queuename
+from forail.main.dispatch.publish import task
 from django.utils.encoding import force_bytes
 from django.utils.timezone import now
 from jinja2 import sandbox, ChainableUndefined
@@ -19,7 +20,7 @@ from jinja2 import sandbox, ChainableUndefined
 logger = logging.getLogger('forail.main.tasks.eda')
 
 
-@shared_task(name='forail.main.tasks.eda.evaluate_event_rule')
+@task(queue=get_task_queuename)
 def evaluate_event_rule(event_log_id):
     """
     Evaluate an EventRule's conditions against a received webhook payload.
@@ -291,7 +292,7 @@ def _log_audit_event(rule, event_log, actions_triggered):
         logger.exception("Failed to create audit event for EventRule %s", rule.pk)
 
 
-@shared_task(name='forail.main.tasks.eda.send_outbound_webhook')
+@task(queue=get_task_queuename)
 def send_outbound_webhook(outbound_webhook_id, job_data):
     """
     Send an outbound webhook notification for a job status change.
@@ -300,7 +301,10 @@ def send_outbound_webhook(outbound_webhook_id, job_data):
         outbound_webhook_id: ID of the OutboundWebhook configuration
         job_data: Dict with job status information to send
     """
-    import httpx
+    # requests, not httpx: httpx is not a dependency of Forail and is not in
+    # the image, so every send failed with ModuleNotFoundError.
+    import requests
+
     from forail.main.models.eda import OutboundWebhook
 
     try:
@@ -326,9 +330,8 @@ def send_outbound_webhook(outbound_webhook_id, job_data):
         headers['X-Forail-Signature'] = f'sha256={mac.hexdigest()}'
 
     try:
-        with httpx.Client(verify=webhook.ssl_verify, timeout=30.0) as client:
-            response = client.post(webhook.url, content=payload_bytes, headers=headers)
-            response.raise_for_status()
+        response = requests.post(webhook.url, data=payload_bytes, headers=headers, verify=webhook.ssl_verify, timeout=30)
+        response.raise_for_status()
 
         webhook.last_status = 'success'
         webhook.last_sent_at = now()
@@ -355,14 +358,22 @@ def dispatch_outbound_webhooks(job, event_type):
         job: UnifiedJob instance
         event_type: String like 'job.succeeded', 'job.failed', etc.
     """
+    from django.db.models import Q
+
     from forail.main.models.eda import OutboundWebhook
 
-    webhooks = OutboundWebhook.objects.filter(
-        enabled=True,
-        events__contains=[event_type],
-    )
+    # A webhook belongs to an organization and sees that organization's jobs
+    # only; one with no organization (superuser-made) sees every job.
+    # Unscoped, every tenant's webhook would receive every other tenant's
+    # job names and hosts.
+    #
+    # events is a JSON list; __contains on a JSON list is not portable
+    # (SQLite has no JSON containment), so match the event in Python.
+    org_id = getattr(job, 'organization_id', None)
+    candidates = OutboundWebhook.objects.filter(enabled=True).filter(Q(organization_id=org_id) | Q(organization__isnull=True))
+    webhooks = [w for w in candidates if event_type in (w.events or [])]
 
-    if not webhooks.exists():
+    if not webhooks:
         return
 
     job_data = {
@@ -370,16 +381,46 @@ def dispatch_outbound_webhooks(job, event_type):
         'timestamp': now().isoformat(),
         'job': {
             'id': job.pk,
-            'name': str(job),
+            'name': job.name,
             'status': job.status,
             'type': job.__class__.__name__,
             'started': str(job.started) if hasattr(job, 'started') and job.started else None,
             'finished': str(job.finished) if hasattr(job, 'finished') and job.finished else None,
-            'elapsed': getattr(job, 'elapsed', None),
+            # elapsed is a Decimal. The dispatcher publishes task arguments with
+            # json.dumps over pg_notify -- unlike Celery, it does not pickle --
+            # so everything here has to be plain JSON.
+            'elapsed': float(job.elapsed) if getattr(job, 'elapsed', None) is not None else None,
             'launch_type': getattr(job, 'launch_type', ''),
             'execution_node': getattr(job, 'execution_node', ''),
         },
     }
 
+    from django.db import connection
+
     for webhook in webhooks:
-        send_outbound_webhook.delay(webhook.pk, job_data)
+        # After commit, so the receiver never hears about a status the
+        # database then rolls back.
+        connection.on_commit(lambda pk=webhook.pk: send_outbound_webhook.delay(pk, job_data))
+
+
+# send_notification_templates() status -> outbound webhook event suffix
+_STATUS_TO_EVENT = {'running': 'started', 'succeeded': 'succeeded', 'failed': 'failed'}
+
+
+def outbound_event_type(job, status):
+    """The OutboundWebhook event for a notification status of ``job``, or None."""
+    from forail.main.models import Job, WorkflowJob
+
+    if isinstance(job, WorkflowJob):
+        prefix = 'workflow'
+    elif isinstance(job, Job):
+        prefix = 'job'
+    else:
+        return None
+    suffix = _STATUS_TO_EVENT.get(status)
+    if suffix == 'failed' and getattr(job, 'status', None) == 'canceled':
+        suffix = 'canceled'
+    event = '%s.%s' % (prefix, suffix) if suffix else None
+    from forail.main.models.eda import OutboundWebhook
+
+    return event if event in dict(OutboundWebhook.EVENT_CHOICES) else None

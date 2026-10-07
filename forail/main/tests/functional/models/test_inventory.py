@@ -192,7 +192,7 @@ class TestInventorySourceInjectors:
             ('rhv', 'ovirt.ovirt.ovirt'),
             ('satellite6', 'theforeman.foreman.foreman'),
             ('insights', 'redhatinsights.insights.insights'),
-            ('controller', 'forail.awx.tower'),
+            ('controller', 'awx.awx.tower'),
             ('terraform', 'cloud.terraform.terraform_state'),
         ],
     )

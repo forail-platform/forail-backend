@@ -22,11 +22,19 @@ import importlib.util
 _drift_path = os.path.join(os.path.dirname(__file__), '..', 'forail', 'main', 'tasks', 'drift.py')
 _drift_path = os.path.abspath(_drift_path)
 
-# We need to mock celery.shared_task before importing
+# Stub the dispatcher's @task before importing. (This used to stub celery --
+# which is also why nothing noticed that celery is not installed in the image
+# and the real module could not be imported at all.)
 import types
-_mock_celery = types.ModuleType('celery')
-_mock_celery.shared_task = lambda *a, **kw: (lambda f: f)
-sys.modules['celery'] = _mock_celery
+_mock_publish = types.ModuleType('forail.main.dispatch.publish')
+_mock_publish.task = lambda *a, **kw: (lambda f: f)
+_mock_dispatch = types.ModuleType('forail.main.dispatch')
+_mock_dispatch.get_task_queuename = lambda *a, **kw: 'test'
+_mock_dispatch.publish = _mock_publish
+for _name in ('forail', 'forail.main'):
+    sys.modules.setdefault(_name, types.ModuleType(_name))
+sys.modules['forail.main.dispatch'] = _mock_dispatch
+sys.modules['forail.main.dispatch.publish'] = _mock_publish
 
 # Also need to stub django modules used at module level
 for mod_name in ['django', 'django.utils', 'django.utils.timezone', 'django.db', 'django.db.models']:

@@ -637,9 +637,25 @@ def disable_rbac_sync():
         rbac_sync_enabled.enabled = previous_value
 
 
+def has_legacy_roles(obj):
+    """True if obj's model carries the old-style ImplicitRoleFields (admin_role, ...).
+
+    The Forail models (event rules, policies, scanners, ...) exist only in the
+    django-ansible-base RBAC and have no old role to mirror an assignment into.
+    """
+    from forail.main.fields import ImplicitRoleField
+
+    return any(isinstance(f, ImplicitRoleField) for f in obj._meta.get_fields())
+
+
 def give_creator_permissions(user, obj):
     assignment = RoleDefinition.objects.give_creator_permissions(user, obj)
-    if assignment:
+    # Mirroring into the old role system looked up obj.<name>_role
+    # unconditionally, so creating any DAB-only model as a non-superuser raised
+    # AttributeError ('Policy' object has no attribute 'creator_role') after
+    # the object had been saved -- a 500, and a rolled-back create, for every
+    # org admin.
+    if assignment and has_legacy_roles(obj):
         with disable_rbac_sync():
             old_role = get_role_from_object_role(assignment.object_role)
             old_role.members.add(user)

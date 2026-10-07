@@ -901,3 +901,51 @@ def control_plane_execution_environment():
 @pytest.fixture
 def default_job_execution_environment():
     return ExecutionEnvironment.objects.create(name="Default Job EE", managed=False)
+
+
+# Forail configuration objects. Named after each model's verbose_name, which
+# is how the all-models RBAC tests (dab_rbac/test_external_auditor.py) find a
+# fixture for every registered model.
+
+
+@pytest.fixture
+def event_rule(organization):
+    from forail.main.models.eda import EventRule
+
+    return EventRule.objects.create(name='test-event-rule', organization=organization, webhook_path='test-event-rule')
+
+
+@pytest.fixture
+def outbound_webhook(organization):
+    from forail.main.models.eda import OutboundWebhook
+
+    return OutboundWebhook.objects.create(name='test-outbound-webhook', organization=organization, url='https://hooks.example/test', events=['job.failed'])
+
+
+@pytest.fixture
+def drift_alert_rule(organization):
+    from forail.main.models.drift import DriftAlertRule
+
+    return DriftAlertRule.objects.create(name='test-drift-alert-rule', organization=organization)
+
+
+@pytest.fixture
+def policy(organization, settings):
+    from forail.main.models.policy import Policy
+
+    settings.OPA_SERVER_URL = ''  # no OPA sidecar in tests; the sync is a logged no-op
+    return Policy.objects.create(name='test-policy', organization=organization)
+
+
+@pytest.fixture
+def scanner(organization):
+    from forail.main.models.scanner import Scanner
+
+    return Scanner.objects.create(name='test-scanner', organization=organization)
+
+
+@pytest.fixture
+def service_catalog_item(organization):
+    from forail.main.models.service_catalog import ServiceCatalogItem
+
+    return ServiceCatalogItem.objects.create(name='test-service-catalog-item', organization=organization)
