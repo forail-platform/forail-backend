@@ -7,6 +7,49 @@ and the project adheres to CalVer (`YYYY.MM.PATCH`).
 
 ## [Unreleased]
 
+## [2026.10.0] - date set when tagged
+
+### Security
+- **Organization members could rewrite Forail's configuration objects.** Event
+  rules, outbound webhooks, drift alert rules, policies, scanners and service
+  catalog items now have access classes: the organization reads, its admins
+  change. An event rule's author must be able to start every template its
+  actions launch; a catalog item's publisher must be able to execute its
+  template. Before, a plain member could disable a policy, retarget a webhook
+  or an event rule across organizations, and read or rotate the inbound
+  webhook key. Objects in another organization now answer 403, not 404.
+- Secrets no longer reach the activity stream: outbound-webhook HMAC key and
+  headers, WebAuthn key material, service-request survey answers.
+- Outbound webhooks only receive their own organization's job events.
+
+### Fixed
+- **Event-driven automation and drift detection did not run at all**: their
+  tasks imported `celery`, which is not installed. Ported to the dispatcher.
+- **Outbound webhooks were never sent**: nothing dispatched them, and the
+  sender imported `httpx`, which is not installed. Now sent on job and
+  workflow start / success / failure / cancel, signed, via `requests`.
+- **WebAuthn**: `py_webauthn` was missing from `requirements.txt`; pinned 2.4.0
+  (2.5 needs cryptography>=44).
+- Only superusers could create the configuration objects above (creator-role
+  crash); DELETE failed for everyone (no access class).
+- Saving any of eight Forail models failed with the activity stream enabled
+  (migration `0212` adds the missing relations).
+- Saving or deleting a policy failed while OPA was unreachable.
+- `import_from_awx`: a re-run erased injectors an admin had re-approved.
+- SSO login landed on the never-built legacy UI; the browsable API's logo and
+  favicon 404'd; non-API paths reaching the backend returned 500.
+
+### Added
+- `import_from_awx --report-file` (JSON plan/result) and a report that prints
+  every warning, grouped by what to do about it.
+- Drift snapshot cleanup runs every six hours.
+- CI runs the Django functional suite (~2,300 tests) on every pull request,
+  and a test fails when Forail's code imports a package the image lacks.
+
+### Removed
+- The legacy AWX React UI source (`forail/ui/src`, ~16 MB per image) and the
+  `forail.ui_next` catch-all.
+
 ## [2026.07.1] - 2026-07-26
 
 ### Fixed
