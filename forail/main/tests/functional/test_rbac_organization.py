@@ -1,6 +1,8 @@
 from unittest import mock
 import pytest
 
+from django.test import override_settings
+
 from forail.main.access import (
     BaseAccess,
     OrganizationAccess,
@@ -41,8 +43,7 @@ def test_organization_access_user(cl, organization, user):
 @pytest.mark.django_db
 @pytest.mark.parametrize('ext_auth', [True, False])
 def test_org_resource_role(ext_auth, organization, rando, org_admin):
-    with mock.patch('forail.main.access.settings') as settings_mock:
-        settings_mock.MANAGE_ORGANIZATION_AUTH = ext_auth
+    with override_settings(MANAGE_ORGANIZATION_AUTH=ext_auth):
         access = OrganizationAccess(org_admin)
 
         assert access.can_attach(organization, rando, 'member_role.members') == ext_auth

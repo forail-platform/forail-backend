@@ -1,0 +1,167 @@
+# The awx.awx collection, 24.6.1, against a live Forail instance.
+#
+# The second AWX client, and the one that matters for existing pipelines:
+# whatever a stranded AWX user has automated, it is almost certainly these
+# modules. Nothing here is Forail-specific -- point controller_host at an
+# AWX and it passes there too.
+#
+# Required: FORAIL_HOST, FORAIL_USER, FORAIL_PASS in the environment.
+# Set RUN_JOBS=1 to include launching a playbook.
+- name: awx.awx 24.6.1 compatibility
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    run_jobs: "{{ lookup('env', 'RUN_JOBS') | default('0', true) }}"
+    playbook_repo: "{{ lookup('env', 'PUBLIC_PLAYBOOK_REPO') | default('https://github.com/ansible/ansible-tower-samples.git', true) }}"
+
+  module_defaults:
+    group/awx.awx.controller:
+      controller_host: "{{ lookup('env', 'FORAIL_HOST') }}"
+      controller_username: "{{ lookup('env', 'FORAIL_USER') }}"
+      controller_password: "{{ lookup('env', 'FORAIL_PASS') }}"
+      validate_certs: false
+
+  tasks:
+    - name: Reach the controller
+      awx.awx.controller_meta:
+      register: r_meta
+      ignore_errors: true
+
+    - name: Create an organization
+      awx.awx.organization:
+        name: coll-org
+        description: awx.awx compatibility suite
+        state: present
+      register: r_org
+      ignore_errors: true
+
+    - name: Create the same organization again
+      awx.awx.organization:
+        name: coll-org
+        description: awx.awx compatibility suite
+        state: present
+      register: r_idem
+      ignore_errors: true
+
+    - name: Create an inventory
+      awx.awx.inventory:
+        name: coll-inv
+        organization: coll-org
+        state: present
+      register: r_inv
+      ignore_errors: true
+
+    - name: Create a host
+      awx.awx.host:
+        name: coll-host
+        inventory: coll-inv
+        variables:
+          ansible_connection: local
+        state: present
+      register: r_host
+      ignore_errors: true
+
+    - name: Create a credential
+      awx.awx.credential:
+        name: coll-cred
+        organization: coll-org
+        credential_type: Machine
+        inputs:
+          username: demo
+        state: present
+      register: r_cred
+      ignore_errors: true
+
+    - name: Create a project
+      awx.awx.project:
+        name: coll-prj
+        organization: coll-org
+        scm_type: git
+        scm_url: "{{ playbook_repo }}"
+        wait: "{{ run_jobs == '1' }}"
+        state: present
+      register: r_prj
+      ignore_errors: true
+
+    - name: Read the API through the controller_api lookup
+      ansible.builtin.set_fact:
+        org_count: >-
+          {{ query('awx.awx.controller_api', 'organizations',
+                   host=lookup('env', 'FORAIL_HOST'),
+                   username=lookup('env', 'FORAIL_USER'),
+                   password=lookup('env', 'FORAIL_PASS'),
+                   verify_ssl=false) | length }}
+      ignore_errors: true
+
+    - name: Export through the collection
+      awx.awx.export:
+        organizations: all
+      register: r_export
+      ignore_errors: true
+
+    # ---- execution, only when the task container can run podman ----------
+    # An existing project is left alone by `state: present`, so a project
+    # created by an earlier API-only run would still have no playbooks.
+    # Sync explicitly rather than relying on creation having done it.
+    - name: Sync the project
+      awx.awx.project_update:
+        project: coll-prj
+        wait: true
+      register: r_sync
+      when: run_jobs == '1'
+      ignore_errors: true
+
+    - name: Create a job template
+      awx.awx.job_template:
+        name: coll-jt
+        project: coll-prj
+        inventory: coll-inv
+        playbook: hello_world.yml
+        state: present
+      register: r_jt
+      when: run_jobs == '1'
+      ignore_errors: true
+
+    - name: Launch it and wait
+      awx.awx.job_launch:
+        job_template: coll-jt
+        wait: true
+      register: r_launch
+      when: run_jobs == '1'
+      ignore_errors: true
+
+    - name: RESULTS
+      ansible.builtin.debug:
+        msg:
+          - "controller_meta        : {{ 'PASS' if not r_meta.failed | default(false) else 'FAIL ' ~ (r_meta.msg | default('') | string)[:160] }}"
+          - "organization create    : {{ 'PASS' if not r_org.failed | default(false) else 'FAIL ' ~ (r_org.msg | default('') | string)[:160] }}"
+          - "organization idempotent: {{ 'PASS (changed=false)' if r_idem.changed | default(true) == false else 'FAIL re-run reported changed' }}"
+          - "inventory create       : {{ 'PASS' if not r_inv.failed | default(false) else 'FAIL ' ~ (r_inv.msg | default('') | string)[:160] }}"
+          - "host create            : {{ 'PASS' if not r_host.failed | default(false) else 'FAIL ' ~ (r_host.msg | default('') | string)[:160] }}"
+          - "credential create      : {{ 'PASS' if not r_cred.failed | default(false) else 'FAIL ' ~ (r_cred.msg | default('') | string)[:160] }}"
+          - "project create         : {{ 'PASS' if not r_prj.failed | default(false) else 'FAIL ' ~ (r_prj.msg | default('') | string)[:160] }}"
+          - "controller_api lookup  : {{ 'PASS organizations=' ~ org_count if org_count is defined else 'FAIL' }}"
+          - "export                 : {{ 'PASS' if not r_export.failed | default(false) else 'FAIL ' ~ (r_export.msg | default('') | string)[:160] }}"
+          - "project sync           : {{ 'SKIP (RUN_JOBS=1 to enable)' if run_jobs != '1' else ('PASS status=' ~ (r_sync.status | default('?')) if not r_sync.failed | default(false) else 'FAIL ' ~ (r_sync.msg | default('') | string)[:160]) }}"
+          - "job_template create    : {{ 'SKIP (RUN_JOBS=1 to enable)' if run_jobs != '1' else ('PASS' if not r_jt.failed | default(false) else 'FAIL ' ~ (r_jt.msg | default('') | string)[:160]) }}"
+          - "job_launch (wait)      : {{ 'SKIP (RUN_JOBS=1 to enable)' if run_jobs != '1' else ('PASS status=' ~ (r_launch.status | default('?')) if not r_launch.failed | default(false) else 'FAIL ' ~ (r_launch.msg | default('') | string)[:160]) }}"
+
+    - name: Fail the play if any check failed
+      ansible.builtin.assert:
+        that:
+          - not r_meta.failed | default(false)
+          - not r_org.failed | default(false)
+          - r_idem.changed | default(true) == false
+          - not r_inv.failed | default(false)
+          - not r_host.failed | default(false)
+          - not r_cred.failed | default(false)
+          - not r_prj.failed | default(false)
+          - org_count is defined
+          - not r_export.failed | default(false)
+          - run_jobs != '1' or not r_sync.failed | default(false)
+          - run_jobs != '1' or not r_jt.failed | default(false)
+          - run_jobs != '1' or not r_launch.failed | default(false)
+          - run_jobs != '1' or r_launch.status | default('') == 'successful'
+        fail_msg: see the RESULTS task above for which check failed

@@ -1,4 +1,3 @@
-{% load static %}
 <!DOCTYPE html>
 <html lang="en-US">
    <head>
@@ -6,17 +5,31 @@
       <meta
          http-equiv="Content-Security-Policy"
          content="default-src 'self';
-                  connect-src 'self' ws: wss:;
-                  style-src 'self' 'unsafe-inline';
-                  script-src 'self' 'nonce-{{ csp_nonce }}' *.pendo.io;
-                  img-src 'self' *.pendo.io data:;"
+                  style-src 'self' 'nonce-{{ csp_nonce }}';
+                  script-src 'self' 'nonce-{{ csp_nonce }}';
+                  img-src 'self' data:;"
          />
       <meta charset="utf-8">
-      <meta http-equiv="X-UA-Compatible" content="IE=edge" />
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <link href="{% static 'css/fonts/assets/RedHatDisplay/RedHatDisplay-Medium.woff' %}" rel="stylesheet" type="application/font-woff" media="all"/>
-      <link href="{% static 'css/fonts/assets/RedHatText/RedHatText-Regular.woff' %}" rel="stylesheet" type="application/font-woff" media="all"/>
-      <link href="{% static 'css/patternfly.min.css' %}" rel="stylesheet" type="text/css" media="all"/>
+      {% comment %}
+        Shown while migrations are pending, which includes every upgrade, so
+        it must not depend on collected static files: during an upgrade they
+        may belong to the previous version, or not be collected yet.
+      {% endcomment %}
+      <style nonce="{{ csp_nonce }}">
+         :root { color-scheme: light dark; --fg: #15171a; --bg: #f4f5f4; --accent: #1d9e75; }
+         @media (prefers-color-scheme: dark) { :root { --fg: #f4f5f4; --bg: #15171a; } }
+         body { margin: 0; min-height: 100vh; display: grid; place-items: center;
+                font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+                color: var(--fg); background: var(--bg); text-align: center; }
+         .spinner { width: 48px; height: 48px; margin: 0 auto 24px; border-radius: 50%;
+                    border: 4px solid color-mix(in srgb, var(--accent) 25%, transparent);
+                    border-top-color: var(--accent); animation: spin 1s linear infinite; }
+         @keyframes spin { to { transform: rotate(360deg); } }
+         @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+         h1 { font-size: 1.5rem; font-weight: 600; margin: 0 0 8px; }
+         p { margin: 0; opacity: .75; }
+      </style>
       <script nonce="{{ csp_nonce }}">
          setInterval(function() {
          window.location = '/';
@@ -24,21 +37,10 @@
       </script>
    </head>
    <body>
-      <div class="pf-l-bullseye pf-m-gutter">
-         <div class="pf-l-bullseye__item">
-            <div class="pf-l-bullseye">
-            <img src="{% static 'media/logo-black.svg' %}" width="300px" alt={{image_alt}} />
-            </div>
-            <div class="pf-l-bullseye">
-              <span class="pf-c-spinner" role="progressbar" aria-valuetext={{aria_spinner}}>
-                <span class="pf-c-spinner__clipper"></span>
-                <span class="pf-c-spinner__lead-ball"></span>
-                <span class="pf-c-spinner__tail-ball"></span>
-              </span>
-            </div>
-            <h2 data-cy="migration-message-upgrade" class="pf-l-bullseye pf-c-title pf-m-2xl ws-heading ws-title ws-h2">{{message_upgrade}}</h2>
-            <h2 class="pf-l-bullseye pf-c-title pf-m-2xl ws-heading ws-title ws-h2">{{message_refresh}}</h2>
-         </div>
-      </div>
+      <main>
+         <div class="spinner" role="progressbar" aria-valuetext="{{ aria_spinner }}"></div>
+         <h1 data-cy="migration-message-upgrade">{{ message_upgrade }}</h1>
+         <p>{{ message_refresh }}</p>
+      </main>
    </body>
 </html>

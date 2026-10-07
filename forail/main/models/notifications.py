@@ -518,6 +518,18 @@ class JobNotificationMixin(object):
 
         if status not in ['running', 'succeeded', 'failed']:
             raise ValueError(_("status must be either running, succeeded or failed"))
+
+        # Outbound webhooks fire on the same lifecycle points as notifications,
+        # independently of whether any notification template is attached.
+        # Never let them break notification delivery.
+        try:
+            from forail.main.tasks.eda import dispatch_outbound_webhooks, outbound_event_type
+
+            event_type = outbound_event_type(self, status)
+            if event_type:
+                dispatch_outbound_webhooks(self, event_type)
+        except Exception:
+            logger.exception('Failed to dispatch outbound webhooks for %s', getattr(self, 'log_format', self))
         try:
             notification_templates = self.get_notification_templates()
         except Exception:

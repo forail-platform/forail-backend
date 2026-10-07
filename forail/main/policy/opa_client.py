@@ -42,6 +42,23 @@ def _delete(url, timeout):
         raise OPAUnavailable(f'OPA DELETE {url} returned {r.status_code}: {r.text[:200]}')
 
 
+def _wrap(fn, *args):
+    """Run an OPA call, turning transport errors into OPAUnavailable.
+
+    Callers -- push_policy and remove_policy in particular -- promise never
+    to raise and catch OPAUnavailable only. A sidecar that is down, not
+    yet started, or unresolvable raises requests' ConnectionError/Timeout
+    instead, which escaped through the post_save/post_delete signal and
+    turned saving or deleting a Policy into a 500 whenever OPA was away.
+    """
+    try:
+        return fn(*args)
+    except OPAUnavailable:
+        raise
+    except Exception as e:
+        raise OPAUnavailable(str(e)) from e
+
+
 def evaluate(server_url, package_path, input_doc, timeout_ms=2000):
     """Run input_doc against the package at package_path. Returns the parsed
     `result` value (typically a dict). Raises OPAUnavailable on errors."""
@@ -65,14 +82,14 @@ def upload_policy(server_url, policy_id, rego_module, timeout_ms=2000):
     if not server_url:
         raise OPAUnavailable('OPA_SERVER_URL is not set')
     url = f'{server_url.rstrip("/")}/v1/policies/forail_{policy_id}'
-    _put_text(url, rego_module, timeout_ms)
+    _wrap(_put_text, url, rego_module, timeout_ms)
 
 
 def delete_policy(server_url, policy_id, timeout_ms=2000):
     if not server_url:
         raise OPAUnavailable('OPA_SERVER_URL is not set')
     url = f'{server_url.rstrip("/")}/v1/policies/forail_{policy_id}'
-    _delete(url, timeout_ms)
+    _wrap(_delete, url, timeout_ms)
 
 
 def parse_decision(result):

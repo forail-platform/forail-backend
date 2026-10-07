@@ -25,6 +25,8 @@ asgiref==3.8.1
     #   django-cors-headers
 asn1==2.7.0
     # via -r /awx_devel/requirements/requirements.in
+asn1crypto==1.5.1
+    # via webauthn
 attrs==23.2.0
     # via
     #   aiohttp
@@ -75,6 +77,8 @@ cachetools==5.3.2
     #   kubernetes
     #   msrest
     #   requests
+cbor2==5.6.5
+    # via webauthn
 cffi==1.17.1
     # via cryptography
 channels==4.1.0
@@ -555,6 +559,8 @@ urllib3==1.26.20
 uwsgi==2.0.24
     # via -r /awx_devel/requirements/requirements.in
 uwsgitop==0.11
+    # via -r /awx_devel/requirements/requirements.in
+webauthn==2.4.0
     # via -r /awx_devel/requirements/requirements.in
 websocket-client==1.7.0
     # via kubernetes

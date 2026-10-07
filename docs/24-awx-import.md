@@ -7,30 +7,58 @@ organizations, inventories, credentials and templates by hand.
 
 ## Usage
 
+Review first, then import:
+
 ```bash
+# 1. Dry run: nothing is written; the report lists every object by name.
 forail-manage import_from_awx \
     --url https://awx.example.com \
-    --token "$AWX_TOKEN" \
-    --dry-run
+    --token-file /run/secrets/awx-token \
+    --dry-run --report-file /tmp/awx-import-plan.json
+
+# 2. The real run, with the same options minus --dry-run.
+forail-manage import_from_awx \
+    --url https://awx.example.com \
+    --token-file /run/secrets/awx-token \
+    --report-file /tmp/awx-import-result.json
 ```
 
 | Option                  | Description                                                            |
 | ----------------------- | ---------------------------------------------------------------------- |
 | `--url`                 | Base URL of the source AWX install (required).                         |
-| `--token`               | OAuth2 token for the source AWX API (preferred auth). Prefer `AWX_TOKEN` env. |
-| `--username/--password` | Basic auth, if no token. Prefer `AWX_USERNAME` / `AWX_PASSWORD` env.   |
+| `--token-file`          | File holding the OAuth2 token. The safest option: nothing in `ps`, the environment or shell history. |
+| `--password-file`       | File holding the basic-auth password.                                  |
+| `--username`            | Basic-auth user, if no token (or `AWX_USERNAME`).                      |
+| `--token` / `--password`| **Deprecated** — visible in `ps` / `/proc` and shell history. Still accepted, with a warning. |
 | `--insecure`            | Skip source TLS certificate verification.                              |
 | `--dry-run`             | Fetch and report what would change, then roll back without writing.    |
+| `--report-file PATH`    | Also write the report as JSON (see [The report](#the-report)).         |
 | `--grant-superusers`    | Honour `is_superuser` / system-role grants from the source (**off** by default). |
 | `--trust-injectors`     | Import custom credential-type injectors verbatim (**off**; else re-approve). |
 | `--resource <type>`     | Limit to specific resource type(s); repeatable. Default: all.          |
 
-> **The source is treated as untrusted by default.** Superuser promotion and
-> custom credential-type injectors (which render into env/extra-vars/files at
-> job-execution time) are **not** applied unless you opt in with
-> `--grant-superusers` / `--trust-injectors`. Pass secrets via `AWX_TOKEN` /
-> `AWX_PASSWORD` environment variables rather than the command line, where they
-> would be visible in `ps` / `/proc`.
+Secrets are read in this order: `--token-file` / `--password-file`, then the
+`AWX_TOKEN` / `AWX_PASSWORD` environment variables, then the deprecated flags.
+With a username and no password, an interactive run prompts for it; a
+non-interactive run fails with a message instead of waiting on a terminal.
+
+## The source is untrusted by default
+
+A compromised or malicious AWX could otherwise use the migration against you:
+
+- **Superusers.** A source user flagged `is_superuser`, or holding the
+  `system_administrator` / `system_auditor` role, is imported as a normal user
+  unless you pass `--grant-superusers`. With it, every promotion is printed and
+  recorded in the audit log (`AuditEvent`, `superuser_granted`), even though the
+  bulk import disables the activity stream. An import never *removes* superuser
+  from a local account.
+- **Injectors.** A custom credential type's injectors render into environment
+  variables, extra vars and files when a job runs, so a hostile injector is code
+  execution on your runners. Without `--trust-injectors`, a new type arrives
+  with no injectors; an admin reviews the source's and adds them by editing the
+  type. Re-running the import **keeps** those re-approved injectors; if the
+  source's differ, that is reported, not applied. Managed (built-in) types are
+  matched, never overwritten.
 
 Resource types (and import order): `organizations`, `users`, `teams`,
 `credential_types`, `credentials`, `projects`, `inventories`, `groups`,
@@ -71,12 +99,33 @@ Resource types (and import order): `organizations`, `users`, `teams`,
   system roles (`system_administrator`, `system_auditor`) are applied to the
   user directly.
 
+## The report
+
+At the end of every run the command prints the counts per resource type and
+then **every** warning, grouped in the order to act on them:
+
+1. Privileges GRANTED from the source (only with `--grant-superusers`)
+2. Privilege grants SKIPPED
+3. Credential-type injectors NOT applied
+4. Secrets and passwords to re-enter
+5. Role grants Forail rejected
+6. Objects skipped
+
+`--report-file PATH` writes the same as JSON (`format: forail-import-report/1`):
+the source, the Forail version, the trust options in effect, every object by
+name split into `created` and `updated` (names qualified by their organization,
+inventory or workflow, where AWX makes them unique), role assignments, secret
+fields pending, and the warnings by kind. Run it with `--dry-run` to review a
+migration before it touches anything; a report that cannot be written is an
+error on stderr, not a failed import.
+
 ## Idempotency
 
 Re-running is safe. Objects are matched by natural key — name within
 organization (username for users) — and **updated** rather than duplicated. An
 `awx_id → Forail object` map is maintained during the run to resolve foreign
-keys (e.g. a job template's inventory and project).
+keys (e.g. a job template's inventory and project). A re-run's report lists
+those objects under `updated`, not `created`.
 
 The whole run executes inside a single transaction with the activity stream
 disabled (so the migration does not flood the audit log). `--dry-run` rolls the

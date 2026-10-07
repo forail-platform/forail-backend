@@ -40,7 +40,6 @@ def _org_filtered_qs(qs, user, org_field='organization_id'):
 
 class ServiceCatalogItemList(ListCreateAPIView):
     model = ServiceCatalogItem
-    permission_classes = [IsAuthenticated]
     ordering = ('category', 'name')
 
     def get_serializer_class(self):
@@ -49,8 +48,7 @@ class ServiceCatalogItemList(ListCreateAPIView):
         return ServiceCatalogItemSerializer
 
     def get_queryset(self):
-        qs = ServiceCatalogItem.objects.all()
-        qs = _org_filtered_qs(qs, self.request.user)
+        qs = self.request.user.get_queryset(ServiceCatalogItem)
         params = self.request.query_params
         if params.get('category'):
             qs = qs.filter(category=params['category'])
@@ -69,12 +67,9 @@ class ServiceCatalogItemList(ListCreateAPIView):
 
 class ServiceCatalogItemDetail(RetrieveUpdateDestroyAPIView):
     model = ServiceCatalogItem
+    # No get_queryset: the full set, so an object outside the user's
+    # organizations is a 403 from the access check, as in the AWX views.
     serializer_class = ServiceCatalogItemSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        return _org_filtered_qs(ServiceCatalogItem.objects.all(), self.request.user)
-
 
 class ServiceCatalogItemLaunchData(APIView):
     """Return survey/launch metadata of the underlying JT or WFJT."""

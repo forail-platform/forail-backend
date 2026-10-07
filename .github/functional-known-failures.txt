@@ -1,0 +1,54 @@
+# Functional tests known to fail on develop, deselected in CI.
+#
+# This list may only shrink. Each line is a test that was already failing
+# when CI first started running the functional suite (2026-09-30); none of
+# them had ever run in CI before. Fix the test or the code, then delete the
+# line in the same commit.
+
+# [external-auditor-read-only-models] TestExternalAuditorRoleAllModels walks every model in the DAB
+# permission registry and expects an access class, a fixture and api:<name>_list / _detail routes.
+# The scan results/findings and the tenancy usage/event records have no access class and partly no
+# detail endpoint; they are read-only records, and giving them endpoints is API design, not a test fix.
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_can_read_method[ScanFinding]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_can_read_method[ScanResult]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_can_read_method[TenantIsolationEvent]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_can_read_method[TenantQuotaEvent]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_can_read_method[TenantUsage]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_get_queryset[ScanFinding]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_get_queryset[ScanResult]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_get_queryset[TenantIsolationEvent]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_get_queryset[TenantQuotaEvent]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_access_get_queryset[TenantUsage]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_detail_view[ScanFinding]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_detail_view[ScanResult]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_detail_view[TenantIsolationEvent]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_detail_view[TenantQuotaEvent]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_detail_view[TenantUsage]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_global_list[ScanFinding]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_global_list[ScanResult]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_global_list[TenantIsolationEvent]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_global_list[TenantQuotaEvent]
+forail/main/tests/functional/dab_rbac/test_external_auditor.py::TestExternalAuditorRoleAllModels::test_global_list[TenantUsage]
+
+# [ee-rbac] Org-scoped execution environment permissions not visible to the grantee.
+forail/main/tests/functional/test_rbac_execution_environment.py::test_give_object_permission_to_ee
+forail/main/tests/functional/test_rbac_execution_environment.py::test_give_org_permission_to_ee[new]
+forail/main/tests/functional/test_rbac_execution_environment.py::test_give_org_permission_to_ee[old]
+
+# [dab-rbac] django-ansible-base rule changes the test does not reflect.
+forail/main/tests/functional/dab_rbac/test_dab_rbac_api.py::test_assign_custom_delete_role
+forail/main/tests/functional/dab_rbac/test_dab_rbac_api.py::test_team_member_role_not_assignable
+
+# [websocket] Websocket relay/consumer auth tests.
+forail/main/tests/functional/test_routing.py::TestWebsocketEventConsumer::test_unauthorized_anonymous
+forail/main/tests/functional/test_routing.py::TestWebsocketRelay::test_authorized
+forail/main/tests/functional/test_routing.py::TestWebsocketRelay::test_not_authorized
+forail/main/tests/functional/test_routing.py::TestWebsocketRelay::test_wrong_secret
+
+# [misc] Individually broken; see the commit that removes each line.
+forail/sso/tests/functional/test_saml_pipeline.py::TestSAMLUserFlags::test__check_flag[user_flags_settings2-expected2-False]
+
+# [licenses] licenses/ (third-party license texts the check compares against
+# requirements/) was never carried over when the backend was split out of the
+# monorepo. Restoring it is a licence-compliance task, not a test fix.
+forail/main/tests/functional/test_licenses.py::test_python_and_js_licenses

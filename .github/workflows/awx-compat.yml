@@ -1,0 +1,111 @@
+# Proves that unmodified AWX 24.6.1 clients still work against Forail.
+#
+# Not on pull_request: this brings up the full stack and executes a
+# playbook, which takes minutes and needs a privileged task container.
+# Nightly, plus on demand.
+name: AWX compatibility
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      forail_tag:
+        description: Image tag to test against
+        required: false
+        default: 2026.07.2-rc1
+
+concurrency:
+  group: awx-compat
+  cancel-in-progress: true
+
+jobs:
+  compat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out the deployment repo
+        uses: actions/checkout@v4
+        with:
+          repository: forail-platform/forail-devops
+          path: deploy
+
+      - name: Configure the stack
+        working-directory: deploy
+        env:
+          # 2026.07.0 cannot run a job at all -- the node comes up as
+          # `control` and the default queue as a Kubernetes container
+          # group. Anything from 2026.07.2-rc1 up is fine.
+          FORAIL_TAG: ${{ inputs.forail_tag || '2026.07.2-rc1' }}
+        run: |
+          set -eu
+          cp .env.example .env
+          gen() { head -c 48 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c "$1"; }
+          {
+            echo "POSTGRES_PASSWORD=$(gen 24)"
+            echo "FORAIL_SECRET_KEY=$(gen 50)"
+            echo "FORAIL_BROADCAST_WEBSOCKET_SECRET=$(gen 50)"
+            echo "FORAIL_ADMIN_PASSWORD=$(gen 24)"
+            echo "FORAIL_TAG=${FORAIL_TAG}"
+            echo "FORAIL_CSRF_TRUSTED_ORIGINS=https://localhost,http://localhost"
+          } >> .env
+          # Older checkouts of the deployment repo do not generate one.
+          if [ ! -f nginx/ssl/fullchain.pem ]; then
+            openssl req -x509 -nodes -days 1 -newkey rsa:2048 \
+              -keyout nginx/ssl/privkey.pem -out nginx/ssl/fullchain.pem \
+              -subj "/CN=localhost"
+          fi
+
+      - name: Bring up the stack
+        working-directory: deploy
+        env:
+          # Job execution runs playbooks through podman in the task
+          # container, which needs these. Off by default in the product
+          # for good reason (H4); acceptable on a throwaway runner.
+          FORAIL_TASK_PRIVILEGED: "true"
+          FORAIL_TASK_CGROUP: host
+        run: docker compose up -d
+
+      - name: Wait for the API
+        run: |
+          set -eu
+          for i in $(seq 1 60); do
+            if curl -sfk https://localhost/api/v2/ping/ >/dev/null; then
+              echo "API up after ${i} tries"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "API never came up"
+          exit 1
+
+      - name: Build the AWX 24.6.1 client image
+        run: docker build -t forail-compat compat/
+
+      - name: awxkit 24.6.1
+        run: |
+          set -eu
+          PASS=$(grep '^FORAIL_ADMIN_PASSWORD=' deploy/.env | cut -d= -f2-)
+          docker run --rm --network host \
+            -e FORAIL_HOST=https://localhost -e FORAIL_USER=admin -e FORAIL_PASS="$PASS" \
+            -e RUN_JOBS=1 forail-compat sh awxkit_suite.sh
+
+      - name: awx.awx collection 24.6.1
+        run: |
+          set -eu
+          PASS=$(grep '^FORAIL_ADMIN_PASSWORD=' deploy/.env | cut -d= -f2-)
+          docker run --rm --network host \
+            -e FORAIL_HOST=https://localhost -e FORAIL_USER=admin -e FORAIL_PASS="$PASS" \
+            -e RUN_JOBS=1 forail-compat ansible-playbook collection_suite.yml
+
+      - name: Stack logs
+        if: failure()
+        working-directory: deploy
+        run: docker compose logs --tail 200
+
+      - name: Tear down
+        if: always()
+        working-directory: deploy
+        run: docker compose down -v

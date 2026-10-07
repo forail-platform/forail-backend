@@ -4,6 +4,7 @@ import logging
 
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
 from forail.api.generics import (
@@ -34,7 +35,6 @@ def _org_filtered(qs, user, org_field='organization_id'):
 
 class ScannerList(ListCreateAPIView):
     model = Scanner
-    permission_classes = [IsAuthenticated]
     ordering = ('name',)
 
     def get_serializer_class(self):
@@ -43,8 +43,7 @@ class ScannerList(ListCreateAPIView):
         return ScannerSerializer
 
     def get_queryset(self):
-        qs = Scanner.objects.all()
-        qs = _org_filtered(qs, self.request.user)
+        qs = self.request.user.get_queryset(Scanner)
         params = self.request.query_params
         if params.get('enabled') is not None:
             v = params['enabled'].lower()
@@ -65,12 +64,9 @@ class ScannerList(ListCreateAPIView):
 
 class ScannerDetail(RetrieveUpdateDestroyAPIView):
     model = Scanner
+    # No get_queryset: the full set, so an object outside the user's
+    # organizations is a 403 from the access check, as in the AWX views.
     serializer_class = ScannerSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        return _org_filtered(Scanner.objects.all(), self.request.user)
-
 
 class ScannerToggle(APIView):
     permission_classes = [IsAuthenticated]
@@ -81,6 +77,8 @@ class ScannerToggle(APIView):
             scanner = _org_filtered(Scanner.objects.all(), request.user).get(pk=self.kwargs['pk'])
         except Scanner.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
+        if not request.user.can_access(Scanner, 'change', scanner, {'enabled': action == 'enable'}):
+            raise PermissionDenied
         scanner.enabled = (action == 'enable')
         scanner.save(update_fields=['enabled', 'modified'])
         return Response({'enabled': scanner.enabled})

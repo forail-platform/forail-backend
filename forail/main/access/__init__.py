@@ -115,6 +115,20 @@ from forail.main.models import UnpartitionedJobEvent  # noqa: E402
 for cls in BaseAccess.__subclasses__():
     if cls.model is not None:
         access_registry[cls.model] = cls
+
+# Forail's own configuration objects share one base class, so they are not
+# direct subclasses of BaseAccess and the loop above does not see them.
+from forail.main.access.forail_config import (  # noqa: E402
+    DriftAlertRuleAccess,
+    EventRuleAccess,
+    OutboundWebhookAccess,
+    PolicyAccess,
+    ScannerAccess,
+    ServiceCatalogItemAccess,
+)
+
+for cls in (EventRuleAccess, OutboundWebhookAccess, DriftAlertRuleAccess, PolicyAccess, ScannerAccess, ServiceCatalogItemAccess):
+    access_registry[cls.model] = cls
 access_registry[UnpartitionedJobEvent] = UnpartitionedJobEventAccess
 
 

@@ -350,9 +350,22 @@ def get_allowed_fields(obj, serializer_mapping):
         serializer_actual = serializer_mapping[obj.__class__]()
         allowed_fields = [x for x in serializer_actual.fields if not serializer_actual.fields[x].read_only] + ['id']
     else:
-        allowed_fields = [x.name for x in obj._meta.fields]
+        # No serializer: every concrete field, less the timestamps every save
+        # touches, which would turn each update into noise.
+        allowed_fields = [x.name for x in obj._meta.fields if x.name not in ('created', 'modified')]
 
-    ACTIVITY_STREAM_FIELD_EXCLUSIONS = {'user': ['last_login'], 'oauth2accesstoken': ['last_used'], 'oauth2application': ['client_secret']}
+    ACTIVITY_STREAM_FIELD_EXCLUSIONS = {
+        'user': ['last_login'],
+        'oauth2accesstoken': ['last_used'],
+        'oauth2application': ['client_secret'],
+        # The activity stream is readable by auditors and is shipped to external
+        # loggers: nothing that authenticates may land in it.
+        'outboundwebhook': ['webhook_key', 'custom_headers'],
+        'webauthncredential': ['credential_id', 'public_key', 'sign_count'],
+        # Survey answers can be passwords; Jobs mask them via display_extra_vars,
+        # a service request has no equivalent, so leave the values out.
+        'servicerequest': ['extra_vars', 'node_survey_data'],
+    }
     model_name = obj._meta.model_name
     fields_excluded = ACTIVITY_STREAM_FIELD_EXCLUSIONS.get(model_name, [])
     # see definition of from_db for CredentialType
