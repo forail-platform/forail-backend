@@ -12,7 +12,9 @@ Overview of backend modules — what each part does, where to find things, and w
 | `forail.api`     | `forail/api/`     | REST API: views, serializers, URL routing          |
 | `forail.conf`    | `forail/conf/`    | Database-backed settings system                    |
 | `forail.sso`     | `forail/sso/`     | SSO authentication (LDAP, SAML, social)            |
-| `forail.ui_next` | `forail/ui_next/` | React frontend (served through Django)             |
+| `forail.ui`      | `forail/ui/`      | UI settings for the API, the upgrade page          |
+
+The product UI is **not** in this repository: it is [forail-frontend](https://github.com/forail-platform/forail-frontend), built and shipped as its own image and routed at the site root by nginx or the ingress. This process serves the API only.
 
 ---
 

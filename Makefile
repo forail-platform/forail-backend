@@ -1,4 +1,3 @@
--include forail/ui_next/Makefile
 
 PYTHON := $(notdir $(shell for i in python3.12 python3.11 python3; do command -v $$i; done|sed 1q))
 SHELL := bash
@@ -115,7 +114,6 @@ endif
 	develop refresh adduser migrate dbchange \
 	receiver test test_unit test_coverage coverage_html \
 	sdist \
-	ui-release ui-devel \
 	VERSION PYTHON_VERSION docker-compose-sources \
 	.git/hooks/pre-commit
 
@@ -138,7 +136,7 @@ clean-languages:
 	find ./forail/locale/ -type f -regex '.*\.mo$$' -delete
 
 ## Remove temporary build files, compiled Python files.
-clean: clean-ui clean-api clean-awxkit clean-dist
+clean: clean-api clean-awxkit clean-dist
 	rm -rf forail/public
 	rm -rf forail/lib/site-packages
 	rm -rf forail/job_status
@@ -448,75 +446,9 @@ bulk_data:
 	$(PYTHON) tools/data_generators/rbac_dummy_data_generator.py --preset=$(DATA_GEN_PRESET)
 
 
-# UI TASKS
-# --------------------------------------
-
-UI_BUILD_FLAG_FILE = forail/ui/.ui-built
-
-clean-ui:
-	rm -rf node_modules
-	rm -rf forail/ui/node_modules
-	rm -rf forail/ui/build
-	rm -rf forail/ui/src/locales/_build
-	rm -rf $(UI_BUILD_FLAG_FILE)
-        # the collectstatic command doesn't like it if this dir doesn't exist.
-	mkdir -p forail/ui/build/static
-
-forail/ui/node_modules:
-	NODE_OPTIONS=--max-old-space-size=6144 $(NPM_BIN) --prefix forail/ui --loglevel warn --force ci
-
-$(UI_BUILD_FLAG_FILE):
-	$(MAKE) forail/ui/node_modules
-	$(PYTHON) tools/scripts/compilemessages.py
-	$(NPM_BIN) --prefix forail/ui --loglevel warn run compile-strings
-	$(NPM_BIN) --prefix forail/ui --loglevel warn run build
-	touch $@
-
-ui-release: $(UI_BUILD_FLAG_FILE)
-
-ui-devel: forail/ui/node_modules
-	@$(MAKE) -B $(UI_BUILD_FLAG_FILE)
-	@if [ -d "/var/lib/awx" ] ; then \
-		mkdir -p /var/lib/forail/public/static/css; \
-		mkdir -p /var/lib/forail/public/static/js; \
-		mkdir -p /var/lib/forail/public/static/media; \
-		cp -r forail/ui/build/static/css/* /var/lib/forail/public/static/css; \
-		cp -r forail/ui/build/static/js/* /var/lib/forail/public/static/js; \
-		cp -r forail/ui/build/static/media/* /var/lib/forail/public/static/media; \
-	fi
-
-ui-devel-instrumented: forail/ui/node_modules
-	$(NPM_BIN) --prefix forail/ui --loglevel warn run start-instrumented
-
-ui-devel-test: forail/ui/node_modules
-	$(NPM_BIN) --prefix forail/ui --loglevel warn run start
-
-ui-lint:
-	$(NPM_BIN) --prefix forail/ui install
-	$(NPM_BIN) run --prefix forail/ui lint
-	$(NPM_BIN) run --prefix forail/ui prettier-check
-
-ui-test:
-	$(NPM_BIN) --prefix forail/ui install
-	$(NPM_BIN) run --prefix forail/ui test
-
-ui-test-screens:
-	$(NPM_BIN) --prefix forail/ui install
-	$(NPM_BIN) run --prefix forail/ui pretest
-	$(NPM_BIN) run --prefix forail/ui test-screens --runInBand
-
-ui-test-general:
-	$(NPM_BIN) --prefix forail/ui install
-	$(NPM_BIN) run --prefix forail/ui pretest
-	$(NPM_BIN) run --prefix forail/ui/ test-general --runInBand
-
-# NOTE: The make target ui-next is imported from forail/ui_next/Makefile
-HEADLESS ?= no
-ifeq ($(HEADLESS), yes)
+# The sdist never bundles a UI: forail-frontend is built and shipped as its
+# own image. HEADLESS is still accepted so existing callers keep working.
 dist/$(SDIST_TAR_FILE):
-else
-dist/$(SDIST_TAR_FILE): $(UI_BUILD_FLAG_FILE) ui-next
-endif
 	$(PYTHON) -m build -s
 	ln -sf $(SDIST_TAR_FILE) dist/forail.tar.gz
 
@@ -758,16 +690,6 @@ kind-dev-load: forail-kube-dev-build
 # Translation TASKS
 # --------------------------------------
 
-## generate UI .pot file, an empty template of strings yet to be translated
-pot: $(UI_BUILD_FLAG_FILE)
-	$(NPM_BIN) --prefix forail/ui --loglevel warn run extract-template --clean
-	$(NPM_BIN) --prefix forail/ui_next --loglevel warn run extract-template --clean
-
-## generate UI .po files for each locale (will update translated strings for `en`)
-po: $(UI_BUILD_FLAG_FILE)
-	$(NPM_BIN) --prefix forail/ui --loglevel warn run extract-strings -- --clean
-	$(NPM_BIN) --prefix forail/ui_next --loglevel warn run extract-strings -- --clean
-
 ## generate API django .pot .po
 messages:
 	@if [ "$(VENV_BASE)" ]; then \
@@ -813,7 +735,3 @@ help/generate:
 	} \
 	{ lastLine = $$0 }' $(MAKEFILE_LIST) | sort -u
 	@printf "\n"
-
-## Display help for ui-next targets
-help/ui-next:
-	@$(MAKE) -s help MAKEFILE_LIST="forail/ui_next/Makefile"

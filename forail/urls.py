@@ -3,6 +3,7 @@
 
 from django.conf import settings
 from django.urls import re_path, include, path
+from django.views.generic.base import RedirectView
 
 from ansible_base.lib.dynamic_config.dynamic_urls import api_urls, api_version_urls, root_urls
 
@@ -19,7 +20,10 @@ def get_urlpatterns(prefix=None):
 
     urlpatterns = [
         re_path(r'^ui_legacy/', include('forail.ui.urls', namespace='ui')),
-        re_path(r'^(?!api/|sso/|ui_legacy/|static/|login/|csp-).*', include('forail.ui_next.urls', namespace='ui_next')),
+        # The UI is forail-frontend, routed at the site root by nginx or the
+        # ingress; this process only serves the API. Someone who reaches it
+        # directly at / gets the API root rather than a page it cannot render.
+        re_path(r'^$', RedirectView.as_view(url=f'/api{prefix}', permanent=False)),
         path(f'api{prefix}', include('forail.api.urls', namespace='api')),
     ]
 

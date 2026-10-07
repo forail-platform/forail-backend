@@ -11,9 +11,7 @@ How to run tests, what to test, and where tests live.
 | Python unit                                                                | pytest     | 1083  | `forail/main/tests/unit/`               |
 | Python functional (API)                                                    | pytest     | 989   | `forail/main/tests/functional/`         |
 | Standalone (EDA, drift, service catalog, webauthn, policy, scanner, audit) | unittest   | 154+  | `tests_standalone/`                    |
-| Frontend                                                                   | vitest     | 72+   | `forail/ui_next/src/**/*.test.{ts,tsx}` |
 | Python lint                                                                | flake8     | —     | `forail/`                               |
-| Frontend lint                                                              | TypeScript | —     | `forail/ui_next/src/`                   |
 
 ### Standalone Tests (no Django required)
 
@@ -101,19 +99,7 @@ python -m pytest forail/main/tests/unit/ -x --tb=long
 
 ## Running Frontend Tests
 
-```bash
-cd forail/ui_next
-npm ci              # Install dependencies (first time)
-npm test            # Run all tests
-npm run test:watch  # Watch mode — re-run on changes
-```
-
-### Specific file
-
-```bash
-npx vitest run src/stores/auth.test.ts
-npx vitest run --reporter=verbose
-```
+Frontend tests live in [forail-frontend](https://github.com/forail-platform/forail-frontend) — see its README.
 
 ---
 
@@ -188,14 +174,6 @@ python -m pytest forail/main/tests/unit/ \
   --cov=forail \
   --cov-report=term-missing \
   --cov-report=html:htmlcov/
-```
-
-### Frontend
-
-```bash
-cd forail/ui_next
-npx vitest run --coverage
-# Output: coverage/index.html
 ```
 
 ---
