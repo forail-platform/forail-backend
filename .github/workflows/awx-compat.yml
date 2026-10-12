@@ -24,10 +24,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Check out the deployment repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: forail-platform/forail-devops
           path: deploy
