@@ -21,13 +21,13 @@ concurrency:
 
 jobs:
   compat:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Check out the deployment repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: forail-platform/forail-devops
           path: deploy
@@ -43,14 +43,19 @@ jobs:
           set -eu
           cp .env.example .env
           gen() { head -c 48 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c "$1"; }
-          {
-            echo "POSTGRES_PASSWORD=$(gen 24)"
-            echo "FORAIL_SECRET_KEY=$(gen 50)"
-            echo "FORAIL_BROADCAST_WEBSOCKET_SECRET=$(gen 50)"
-            echo "FORAIL_ADMIN_PASSWORD=$(gen 24)"
-            echo "FORAIL_TAG=${FORAIL_TAG}"
-            echo "FORAIL_CSRF_TRUSTED_ORIGINS=https://localhost,http://localhost"
-          } >> .env
+          # Replace, never append: .env.example already sets every one of
+          # these (to "changeme" and friends). Appending left two
+          # FORAIL_ADMIN_PASSWORD lines; compose used the last, the suite
+          # steps read both, and awx was handed "changeme" plus the real
+          # password as a stray argument -- every command printed its usage.
+          set_env() { grep -v "^$1=" .env > .env.new || true; echo "$1=$2" >> .env.new; mv .env.new .env; }
+          set_env POSTGRES_PASSWORD "$(gen 24)"
+          set_env FORAIL_SECRET_KEY "$(gen 50)"
+          set_env FORAIL_BROADCAST_WEBSOCKET_SECRET "$(gen 50)"
+          set_env FORAIL_ADMIN_PASSWORD "$(gen 24)"
+          set_env FORAIL_TAG "${FORAIL_TAG}"
+          set_env FORAIL_CSRF_TRUSTED_ORIGINS "https://localhost,http://localhost"
+          test "$(grep -c '^FORAIL_ADMIN_PASSWORD=' .env)" -eq 1
           # Older checkouts of the deployment repo do not generate one.
           if [ ! -f nginx/ssl/fullchain.pem ]; then
             openssl req -x509 -nodes -days 1 -newkey rsa:2048 \
