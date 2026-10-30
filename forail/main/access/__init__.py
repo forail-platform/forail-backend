@@ -101,6 +101,8 @@ from forail.main.access.activity_stream import ActivityStreamAccess  # noqa: F40
 
 from forail.main.access.roles import RoleAccess  # noqa: F401
 
+from forail.main.access.monitored_servers import MonitoredServerAccess  # noqa: F401
+
 # Maintain original __all__
 __all__ = [
     'get_user_queryset',
