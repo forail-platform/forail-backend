@@ -113,6 +113,7 @@ class ActivityStream(models.Model):
     web_authn_credential = models.ManyToManyField("WebAuthnCredential", blank=True)
     policy = models.ManyToManyField("Policy", blank=True)
     scanner = models.ManyToManyField("Scanner", blank=True)
+    monitored_server = models.ManyToManyField("MonitoredServer", blank=True)
 
     setting = models.JSONField(default=dict, blank=True)
 

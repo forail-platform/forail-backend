@@ -274,6 +274,8 @@ RLS_TABLES_DIRECT = [
     ('main_scanresult', 'organization_id'),
     # Service catalog
     ('main_servicecatalogitem', 'organization_id'),
+    # Monitored servers (forail-mobile#52)
+    ('main_monitoredserver', 'organization_id'),
     # Audit
     ('main_auditevent', 'organization_id'),
 ]

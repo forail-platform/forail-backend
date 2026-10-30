@@ -95,6 +95,7 @@ from forail.main.models.webauthn import (  # noqa
 from forail.main.models.policy import Policy, PolicyDecision  # noqa
 import forail.main.policy.sync  # noqa: F401  -- registers post_save / post_delete signals
 from forail.main.models.scanner import Scanner, ScanResult, ScanFinding  # noqa
+from forail.main.models.monitored_server import MonitoredServer  # noqa
 from forail.main.models.tenancy import TenantUsage, TenantQuotaEvent, TenantIsolationEvent  # noqa
 from forail.main.models.label import Label  # noqa
 from forail.main.models.workflow import (  # noqa
@@ -326,13 +327,14 @@ activity_stream_registrar.connect(ServiceRequest)
 activity_stream_registrar.connect(WebAuthnCredential)
 activity_stream_registrar.connect(Policy)
 activity_stream_registrar.connect(Scanner)
+activity_stream_registrar.connect(MonitoredServer)
 # The tenant models are intentionally NOT activity-stream tracked: ActivityStream
 # has no m2m field for them, so connecting them makes activity_stream_create raise
 # AttributeError on every insert (which broke tenant provisioning). TenantUsage is
 # an internal counter row and the two *Event models are themselves audit records.
 
 # Register models
-permission_registry.register(Project, Team, WorkflowJobTemplate, JobTemplate, Inventory, Organization, Credential, NotificationTemplate, ExecutionEnvironment, EventRule, OutboundWebhook, DriftAlertRule, ServiceCatalogItem, Policy, Scanner, ScanResult, TenantUsage, TenantQuotaEvent)
+permission_registry.register(Project, Team, WorkflowJobTemplate, JobTemplate, Inventory, Organization, Credential, NotificationTemplate, ExecutionEnvironment, EventRule, OutboundWebhook, DriftAlertRule, ServiceCatalogItem, Policy, Scanner, ScanResult, TenantUsage, TenantQuotaEvent, MonitoredServer)
 # ScanFinding and TenantIsolationEvent have no direct `organization` field, so the
 # default parent_field_name='organization' makes DAB's permission validation raise
 # FieldDoesNotExist when walking child models — which breaks ALL role assignment.
