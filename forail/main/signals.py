@@ -473,6 +473,7 @@ def model_serializer_mapping():
     from forail.api.serializers.eda import EventRuleSerializer, OutboundWebhookSerializer
     from forail.api.serializers.policy import PolicySerializer
     from forail.api.serializers.scanner import ScannerSerializer
+    from forail.api.serializers.monitored_servers import MonitoredServerSerializer
     from forail.api.serializers.service_catalog import ServiceCatalogItemSerializer
     from forail.main import models
 
@@ -514,6 +515,7 @@ def model_serializer_mapping():
         models.ServiceCatalogItem: ServiceCatalogItemSerializer,
         models.Policy: PolicySerializer,
         models.Scanner: ScannerSerializer,
+        models.MonitoredServer: MonitoredServerSerializer,
         # ServiceRequest and WebAuthnCredential deliberately have no entry: their
         # API serializers mark status / approved_by read-only, and an approval
         # is exactly what the activity stream must record. They fall back to the
