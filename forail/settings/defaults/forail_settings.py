@@ -3,6 +3,8 @@
 
 # Forail-specific miscellaneous settings
 
+import os
+
 # ---------------------
 # -- Activity Stream --
 # ---------------------
@@ -192,3 +194,27 @@ SURVEY_DYNAMIC_CHOICES_JINJA2_ENABLED = False
 # (cloud metadata), multicast and reserved addresses are refused even for a
 # listed host, so a hijacked DNS record cannot redirect the fetch inward.
 SURVEY_DYNAMIC_CHOICES_API_ALLOWLIST = []
+
+
+# -----------------------------
+# -- Forail Mobile           --
+# -----------------------------
+# Monitored servers (forail-mobile#52) are registered here and kept, with their
+# telemetry and agent tokens, in the Forail Mobile backend. The two talk over a
+# service API authenticated by one shared secret, in both directions:
+#
+#   platform -> mobile  create, enrollment code, rotate, delete, status
+#   mobile -> platform  which servers a user may read, and who has access
+#
+# FORAIL_MOBILE_URL is how this platform reaches the mobile backend (often an
+# in-cluster address); FORAIL_MOBILE_PUBLIC_URL is what an agent on the server
+# uses, shown in the install command. Leave the token empty to switch the
+# feature off: the service endpoints then answer 404 and creating a monitored
+# server answers 503.
+FORAIL_MOBILE_URL = os.getenv('FORAIL_MOBILE_URL', '')
+FORAIL_MOBILE_PUBLIC_URL = os.getenv('FORAIL_MOBILE_PUBLIC_URL', '')
+FORAIL_MOBILE_SERVICE_TOKEN = os.getenv('FORAIL_MOBILE_SERVICE_TOKEN', '')
+FORAIL_MOBILE_TIMEOUT = 10
+
+# How many monitored servers one user may own. Superusers are not limited.
+MONITORED_SERVERS_PER_USER = 10
