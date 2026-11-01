@@ -44,6 +44,8 @@ from django.utils import timezone
 from crum import get_current_request, get_current_user
 from crum.signals import current_user_getter
 
+from ansible_base.rbac.models import RoleTeamAssignment, RoleUserAssignment
+
 
 # AWX
 from forail.main.models import (
@@ -297,6 +299,33 @@ post_save.connect(sync_superuser_status_to_rbac, sender=User)
 m2m_changed.connect(sync_rbac_to_superuser_status, Role.members.through)
 pre_delete.connect(cleanup_detached_labels_on_deleted_parent, sender=UnifiedJob)
 pre_delete.connect(cleanup_detached_labels_on_deleted_parent, sender=UnifiedJobTemplate)
+
+
+def guard_monitored_server_assignment(sender, instance, **kwargs):
+    """Granting or revoking a role on a monitored server is for its organization's admins.
+
+    The owner holds admin_role on their server, which on any other resource
+    would let them share it. This holds whichever API made the assignment --
+    the old /roles/ endpoints mirror into these same rows.
+    """
+    from django.contrib.contenttypes.models import ContentType
+
+    from forail.main.access.monitored_servers import check_can_manage_access
+    from forail.main.models.monitored_server import MonitoredServer
+
+    if not instance.content_type_id:
+        return
+    if instance.content_type_id != ContentType.objects.get_for_model(MonitoredServer).id:
+        return
+    server = MonitoredServer.objects.filter(pk=instance.object_id).select_related('organization').first()
+    if server is None:
+        return  # the server itself is being deleted
+    check_can_manage_access(server)
+
+
+for _assignment_model in (RoleUserAssignment, RoleTeamAssignment):
+    pre_save.connect(guard_monitored_server_assignment, sender=_assignment_model)
+    pre_delete.connect(guard_monitored_server_assignment, sender=_assignment_model)
 
 
 # -----------------------------------------------------------------------------
