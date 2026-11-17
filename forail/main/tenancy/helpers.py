@@ -280,6 +280,21 @@ RLS_TABLES_DIRECT = [
     ('main_auditevent', 'organization_id'),
 ]
 
+# Tables created by a migration after the RLS ones (0206, 0210, 0211) that build
+# their SQL from RLS_TABLES_DIRECT. Those migrations must not touch a table that
+# does not exist yet when they run, so they take rls_tables_direct_until(their
+# number); the table's own migration installs its policy. Number = the
+# migration that creates the table.
+RLS_TABLE_CREATED_IN = {
+    'main_monitoredserver': 213,
+}
+
+
+def rls_tables_direct_until(migration_number):
+    """RLS_TABLES_DIRECT as it stood for the migration numbered ``migration_number``."""
+    return [(t, c) for t, c in RLS_TABLES_DIRECT if RLS_TABLE_CREATED_IN.get(t, 0) <= migration_number]
+
+
 # Tables where the org relationship is indirect (via FK to another table).
 # We handle these with a subquery-based policy, not listed in RLS_TABLES_DIRECT.
 RLS_TABLES_INDIRECT = [

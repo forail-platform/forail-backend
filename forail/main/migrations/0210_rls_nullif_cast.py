@@ -14,7 +14,7 @@ direct and indirect tables, so this converges on fresh and existing DBs.
 from django.db import migrations
 
 from forail.main.tenancy.helpers import (
-    RLS_TABLES_DIRECT,
+    rls_tables_direct_until,
     RLS_TABLES_INDIRECT,
     build_rls_policy_sql,
     build_rls_policy_sql_indirect,
@@ -23,7 +23,7 @@ from forail.main.tenancy.helpers import (
 
 def _rebuild_sql():
     statements = []
-    for table, org_col in RLS_TABLES_DIRECT:
+    for table, org_col in rls_tables_direct_until(210):
         create, drop = build_rls_policy_sql(table, org_col)
         statements.append(f'ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;')
         statements.append(f'ALTER TABLE {table} FORCE ROW LEVEL SECURITY;')
