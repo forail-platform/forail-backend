@@ -9,7 +9,7 @@ import forail.main.fields
 import forail.main.models.monitored_server
 from forail.main.migrations._dab_rbac import (
     create_permissions_as_operation,
-    setup_managed_role_definitions,
+    sync_managed_role_definitions,
 )
 from forail.main.tenancy.helpers import build_rls_policy_sql
 
@@ -127,8 +127,10 @@ class Migration(migrations.Migration):
         ),
         # DAB permissions for the new model, then the managed role definitions
         # that include them -- Organization Admin and Audit among them, which is
-        # what lets an organization's admins reach its servers.
+        # what lets an organization's admins reach its servers. Nothing is
+        # deleted: setup_managed_role_definitions alone would drop the migrated
+        # 'System Auditor' and every assignment of it.
         migrations.RunPython(create_permissions_as_operation, migrations.RunPython.noop),
-        migrations.RunPython(setup_managed_role_definitions, migrations.RunPython.noop),
+        migrations.RunPython(sync_managed_role_definitions, migrations.RunPython.noop),
         migrations.RunSQL(sql=_rls_sql(), reverse_sql='ALTER TABLE main_monitoredserver DISABLE ROW LEVEL SECURITY;'),
     ]
