@@ -7,7 +7,7 @@ from django.conf import settings
 from django.contrib.auth.models import User
 
 from forail.main.access.base import BaseAccess, check_superuser, check_user_access
-from forail.main.models import Organization, Role, Team
+from forail.main.models import MonitoredServer, Organization, Role, Team
 from forail.main.models.mixins import ResourceMixin
 
 logger = logging.getLogger('forail.main.access')
@@ -67,6 +67,12 @@ class RoleAccess(BaseAccess):
         if isinstance(obj.content_object, Team) and obj.role_field in ['admin_role', 'member_role']:
             if not settings.MANAGE_ORGANIZATION_AUTH and not self.user.is_superuser:
                 return False
+
+        if isinstance(obj.content_object, MonitoredServer):
+            # Owners hold admin_role but may not share their server (forail-mobile#52).
+            from forail.main.access.monitored_servers import MonitoredServerAccess
+
+            return MonitoredServerAccess(self.user).can_manage_access(obj.content_object)
 
         if isinstance(obj.content_object, ResourceMixin) and self.user in obj.content_object.admin_role:
             return True
