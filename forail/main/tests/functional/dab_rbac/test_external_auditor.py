@@ -10,6 +10,9 @@ from forail.main.models import User, AdHocCommandEvent
 from forail.api.versioning import reverse
 
 
+HIDES_EXISTENCE = {'monitoredserver'}
+
+
 @pytest.fixture
 def ext_auditor_rd():
     info = SystemAuditor(overrides={'name': 'Alien Auditor', 'shortname': 'ext_auditor'})
@@ -90,7 +93,9 @@ class TestExternalAuditorRoleAllModels:
         obj = obj_factory(fixture_name)
 
         url = reverse(f'api:{fixture_name}_detail', kwargs={'pk': obj.pk})
-        get(url, user=rando, expect=403)  # NOTE: should be 401
+        # Monitored servers answer 404, not 403, so the API never confirms that
+        # one exists to someone who may not see it (forail-mobile#52).
+        get(url, user=rando, expect=404 if model._meta.model_name in HIDES_EXISTENCE else 403)  # NOTE: should be 401
         get(url, user=ext_auditor, expect=200)
 
 

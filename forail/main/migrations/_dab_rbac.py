@@ -270,9 +270,14 @@ def get_or_create_managed(name, description, ct, permissions, RoleDefinition):
     return role_definition
 
 
-def setup_managed_role_definitions(apps, schema_editor):
+def setup_managed_role_definitions(apps, schema_editor, delete_unexpected=True):
     """
     Idepotent method to create or sync the managed role definitions
+
+    With delete_unexpected (the 0192 behaviour), any other managed role
+    definition is deleted -- including 'System Auditor', which 0192 itself
+    creates afterwards for the migrated system auditors. A later migration that
+    only adds a model must not do that: use sync_managed_role_definitions.
     """
     to_create = {
         'object_admin': '{cls.__name__} Admin',
@@ -368,7 +373,22 @@ def setup_managed_role_definitions(apps, schema_editor):
             )
         )
 
+    if not delete_unexpected:
+        return
     unexpected_role_definitions = RoleDefinition.objects.filter(managed=True).exclude(pk__in=[rd.pk for rd in managed_role_definitions])
     for role_definition in unexpected_role_definitions:
         logger.info(f'Deleting old managed role definition {role_definition.name}, pk={role_definition.pk}')
         role_definition.delete()
+
+
+def sync_managed_role_definitions(apps, schema_editor):
+    """For a migration that registers a new model: create or update the managed role
+    definitions for it (object admin, organization admin and audit), deleting none,
+    and give the migrated 'System Auditor' the new view permissions, as 0192 gave
+    it every view permission that existed then."""
+    setup_managed_role_definitions(apps, schema_editor, delete_unexpected=False)
+    RoleDefinition = apps.get_model('dab_rbac', 'RoleDefinition')
+    Permission = apps.get_model('dab_rbac', 'DABPermission')
+    auditor = RoleDefinition.objects.filter(name='System Auditor', content_type__isnull=True).first()
+    if auditor is not None:
+        auditor.permissions.add(*list(Permission.objects.filter(codename__startswith='view')))

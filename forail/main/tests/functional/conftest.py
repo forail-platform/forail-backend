@@ -223,6 +223,15 @@ def organization():
 
 
 @pytest.fixture
+def monitored_server(organization):
+    import uuid
+
+    from forail.main.models.monitored_server import MonitoredServer
+
+    return MonitoredServer.objects.create(name='test-monitored-server', organization=organization, mobile_server_id=uuid.uuid4())
+
+
+@pytest.fixture
 def credentialtype_kube():
     kube = CredentialType.defaults['kubernetes_bearer_token']()
     kube.save()

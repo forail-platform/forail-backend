@@ -361,6 +361,29 @@ class TestRlsTablesConstant(unittest.TestCase):
         indirect_tables = {t for t, _, _, _ in RLS_TABLES_INDIRECT}
         self.assertIn('main_host', indirect_tables)
 
+    def test_old_rls_migrations_skip_tables_created_later(self):
+        """0211 failed with 'relation main_monitoredserver does not exist' on a real
+        upgrade: it built its SQL from the whole list, and that table is created in
+        0213. Each RLS migration sees the list as it stood at its own number."""
+        until = helpers.rls_tables_direct_until
+        self.assertNotIn('main_monitoredserver', {t for t, _ in until(211)})
+        self.assertIn('main_monitoredserver', {t for t, _ in until(213)})
+        self.assertEqual(until(10_000), RLS_TABLES_DIRECT)
+        for table in helpers.RLS_TABLE_CREATED_IN:
+            self.assertIn(table, {t for t, _ in RLS_TABLES_DIRECT})
+
+    def test_rls_migrations_never_loop_over_the_whole_list(self):
+        import pathlib
+        import re
+
+        migrations = pathlib.Path(__file__).resolve().parent.parent / 'forail' / 'main' / 'migrations'
+        for path in sorted(migrations.glob('0*.py')):
+            text = path.read_text()
+            self.assertIsNone(
+                re.search(r'for [^\n]+ in RLS_TABLES_DIRECT\b', text),
+                f'{path.name} builds SQL from the live RLS_TABLES_DIRECT; use rls_tables_direct_until(<its number>)',
+            )
+
 
 # ---------------------------------------------------------------------------
 # Multi-Tenancy v2: Strict Isolation helper tests

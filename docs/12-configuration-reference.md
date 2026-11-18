@@ -139,6 +139,19 @@ The AWX importer treats the source as untrusted by default:
 | `--trust-injectors`  | Import custom credential-type injectors verbatim (off; else re-approve)     |
 | `AWX_TOKEN` / `AWX_PASSWORD` | Preferred over `--token` / `--password` (argv leaks via `ps`/`/proc`) |
 
+### Forail Mobile (monitored servers)
+
+Settings-file values (environment variables of the same name are read too), not
+`/api/v2/settings/`: the token is a shared secret. See doc 26.
+
+| Setting                       | Default | Meaning                                                              |
+| ----------------------------- | ------- | -------------------------------------------------------------------- |
+| `FORAIL_MOBILE_URL`           | `''`    | How the platform reaches the Forail Mobile backend                   |
+| `FORAIL_MOBILE_PUBLIC_URL`    | `''`    | What agents use, shown in the install command (falls back to the above) |
+| `FORAIL_MOBILE_SERVICE_TOKEN` | `''`    | Shared service token, both directions. Empty switches the feature off |
+| `FORAIL_MOBILE_TIMEOUT`       | `10`    | Seconds per call to the mobile backend                               |
+| `MONITORED_SERVERS_PER_USER`  | `10`    | Servers one user may own; above it `409`. Superusers are not limited  |
+
 ---
 
 ## Common Configuration Tasks
