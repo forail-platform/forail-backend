@@ -138,6 +138,30 @@ MONITORED_SERVERS_PER_USER = 10
 
 ---
 
+## Upgrading
+
+Migration 0213 adds the table, its row-level security policy and the managed
+role definitions (`MonitoredServer Admin`, `Organization MonitoredServer
+Admin`), and adds the new permissions to `Organization Admin`, `Organization
+Audit` and the migrated `System Auditor`. It deletes no role definition.
+
+Two things were found only by running the migrations on a real database, not
+by the functional suite (which runs without them), and are fixed:
+
+- the earlier RLS migrations (0206, 0210, 0211) built their SQL from the live
+  table list and failed on a table created later; each now takes
+  `rls_tables_direct_until(<its number>)`;
+- re-running `setup_managed_role_definitions` deleted the migrated `System
+  Auditor` role and every system auditor's assignment; 0213 uses
+  `sync_managed_role_definitions`, which deletes nothing.
+
+Verified on 2026-11-17/18 by upgrading the dev cluster from 0210 and by
+migrating an empty database from 0001, both on PostgreSQL. The whole
+"done when" of forail-mobile#52 then ran against the cluster with
+`forail-mobile/tools/epic52-live-check.py`: 54 of 54 checks.
+
+---
+
 ## Moving servers registered before #52
 
 Servers that were registered directly in the Forail Mobile backend have no
