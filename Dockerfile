@@ -46,7 +46,7 @@ RUN apt-get update && apt-get install -y \
     libxmlsec1-openssl && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install --break-system-packages -vv build
+RUN pip3 install --break-system-packages --ignore-installed packaging -vv build
 
 # Install & build requirements
 ADD Makefile /tmp/Makefile
@@ -121,7 +121,7 @@ RUN apt-get update && apt-get install -y \
     libxmlsec1-openssl && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install --break-system-packages -vv virtualenv supervisor dumb-init build
+RUN pip3 install --break-system-packages --ignore-installed packaging -vv virtualenv supervisor dumb-init build
 
 # Create CentOS-compatible SSL cert paths (certifi/requests expect these)
 RUN mkdir -p /etc/pki/tls/certs && \
