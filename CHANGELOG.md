@@ -7,19 +7,7 @@ and the project adheres to CalVer (`YYYY.MM.PATCH`).
 
 ## [Unreleased]
 
-### Added
-- **Monitored servers** (forail-mobile#52): `/api/v2/monitored_servers/`.
-  Any user registers their own server running `forail-agent`; its owner,
-  the admins of its organization and superusers manage it, and only the
-  organization's admins and superusers grant or revoke access. Anyone else
-  gets `404`. One-time enrollment codes and token rotation go through the
-  Forail Mobile service API; no long-lived agent token is ever shown.
-  Service endpoints let the mobile backend ask who may read what. Per-user
-  quota `MONITORED_SERVERS_PER_USER` (10). `import_monitored_servers` brings
-  servers registered in Forail Mobile before this under platform RBAC.
-  See docs/26-monitored-servers.md.
-
-## [2026.10.0] - date set when tagged
+## [2026.11.0] - 2026-11-20
 
 ### Security
 - **Organization members could rewrite Forail's configuration objects.** Event
@@ -52,6 +40,16 @@ and the project adheres to CalVer (`YYYY.MM.PATCH`).
   favicon 404'd; non-API paths reaching the backend returned 500.
 
 ### Added
+- **Monitored servers** (forail-mobile#52): `/api/v2/monitored_servers/`.
+  Any user registers their own server running `forail-agent`; its owner,
+  the admins of its organization and superusers manage it, and only the
+  organization's admins and superusers grant or revoke access. Anyone else
+  gets `404`. One-time enrollment codes and token rotation go through the
+  Forail Mobile service API; no long-lived agent token is ever shown.
+  Service endpoints let the mobile backend ask who may read what. Per-user
+  quota `MONITORED_SERVERS_PER_USER` (10). `import_monitored_servers` brings
+  servers registered in Forail Mobile before this under platform RBAC.
+  See docs/26-monitored-servers.md.
 - `import_from_awx --report-file` (JSON plan/result) and a report that prints
   every warning, grouped by what to do about it.
 - Drift snapshot cleanup runs every six hours.
