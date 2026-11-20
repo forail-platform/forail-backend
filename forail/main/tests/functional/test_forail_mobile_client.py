@@ -7,6 +7,13 @@ from django.test import override_settings
 from forail.main.services import forail_mobile
 from forail.main.services.forail_mobile import ForailMobileClient
 
+# The client logs a warning on the error paths below, and the external-logger
+# filter on that handler reads the DB-backed LOG_AGGREGATOR_ENABLED setting.
+# That lookup is cached, so whether it touches the database depends on xdist
+# cache warmth -- which made these tests flakily raise "Database access not
+# allowed". Give the whole module DB access so the setting read is deterministic.
+pytestmark = pytest.mark.django_db
+
 
 class Response:
     def __init__(self, status_code, body=None, text=''):
